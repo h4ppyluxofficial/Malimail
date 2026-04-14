@@ -1,4 +1,4 @@
-name: MaliMail-Ultimate-Fix
+name: MaliMail-Final-Shield
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,9 +8,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false # Игнорируем битые сабмодули
+          submodules: false # Игнорируем проблемные ссылки OpenXR
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -21,8 +21,8 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Inject Root Config
-        # МЫ СОЗДАЕМ КОРНЕВОЙ ФАЙЛ, КОТОРОГО НЕ ХВАТАЛО
+      - name: Auto-Fix Project Structure
+        # Этот блок заменяет битые конфиги Brunodev на рабочие
         run: |
           cat <<EOF > build.gradle
           buildscript {
@@ -37,13 +37,13 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
 
-      - name: Build APK
-        # Собираем только модуль app
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Force Build With Info
+        # Добавляем --info, чтобы если упадет, мы видели точную причину
+        run: ./gradlew :app:assembleDebug --stacktrace --info --no-daemon || gradle :app:assembleDebug --stacktrace --info --no-daemon
 
-      - name: Upload
+      - name: Upload Result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Final-Result
+          name: Winlator-Build-Log
           path: "app/build/outputs/apk/debug/*.apk"
