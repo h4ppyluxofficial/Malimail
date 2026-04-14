@@ -1,14 +1,17 @@
-name: MaliMail-Resource-Pass
+name: Build MaliMail
+
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: false  # меняй на 'recursive' если вдруг нужен OpenXR
+          fetch-depth: 1
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -16,27 +19,147 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup NDK
+      - name: Setup Android SDK build-tools
+        run: |
+          # Убеждаемся что нужные build-tools установлены
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "build-tools;33.0.2" \
+            "platforms;android-33" 2>/dev/null || true
+
+      - name: Setup NDK r25c
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
+          add-to-path: true
 
-      - name: Fix Everything
+      - name: Prepare build environment
         run: |
-          echo "include ':app'" > settings.gradle
+          # local.properties — SDK и NDK
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
+          echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           
-          # Инъекция конфигов
-          sed -i '1i buildscript { repositories { google(); mavenCentral() }; dependencies { classpath "com.android.tools.build:gradle:8.0.0" } }' app/build.gradle
-          sed -i '/android {/a \    namespace "com.winlator"\n    buildFeatures { buildConfig true }' app/build.gradle
-          
-          # ФИКС: Отключаем строгую проверку ресурсов, которая вешает билд на 1000333809.png
-          echo "android.aapt2FromMavenOverride=$ANDROID_HOME/build-tools/33.0.0/aapt2" >> local.properties
+          # Явно указываем aapt2 из установленных build-tools
+          AAPT2_PATH=$(find $ANDROID_HOME/build-tools -name "aapt2" | sort -V | tail -1)
+          echo "Найден aapt2: $AAPT2_PATH"
+          echo "android.aapt2FromMavenOverride=$AAPT2_PATH" >> local.properties
 
-      - name: Build APK
+      - name: Patch settings.gradle
         run: |
-          # Даем еще больше свободы при сборке ресурсов
-          gradle :app:assembleDebug --stacktrace --no-daemon \
-          -Pandroid.skipResourceValidation=true \
-          -Pandroid.verifyAapt2Compile=false
+          # Пересоздаём settings.gradle — только :app, без лишних модулей
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+              google()
+              mavenCentral()
+            }
+          }
+          rootProject.name = "Winlator"
+          include ':app'
+          EOF
+
+      - name: Patch app/build.gradle
+        run: |
+          BUILDFILE="app/build.gradle"
+          
+          # Инъекция buildscript только если его нет
+          if ! grep -q "com.android.tools.build:gradle" "$BUILDFILE"; then
+            echo "Добавляем buildscript блок..."
+            cat > /tmp/buildscript_header.gradle << 'EOF'
+          buildscript {
+            repositories {
+              google()
+              mavenCentral()
+            }
+            dependencies {
+              classpath 'com.android.tools.build:gradle:8.0.0'
+            }
+          }
+          EOF
+            cat /tmp/buildscript_header.gradle "$BUILDFILE" > /tmp/merged_build.gradle
+            mv /tmp/merged_build.gradle "$BUILDFILE"
+          fi
+          
+          # namespace — только если нет
+          if ! grep -q 'namespace' "$BUILDFILE"; then
+            sed -i '/android {/a\    namespace "com.winlator"' "$BUILDFILE"
+          fi
+          
+          # buildFeatures — только если нет
+          if ! grep -q 'buildFeatures' "$BUILDFILE"; then
+            sed -i '/namespace "com.winlator"/a\    buildFeatures { buildConfig true }' "$BUILDFILE"
+          fi
+          
+          echo "=== Итоговый app/build.gradle (первые 40 строк) ==="
+          head -40 "$BUILDFILE"
+
+      - name: Fix broken resources
+        run: |
+          # Удаляем файлы с невалидными именами (цифры > 0x7FFFFFFF и т.д.)
+          # AAPT2 падает на именах файлов вида 1000333809.png
+          echo "Ищем потенциально проблемные ресурсы..."
+          find app/src/main/res -type f | while read f; do
+            BASENAME=$(basename "$f")
+            # Имена не должны начинаться с цифры в большинстве drawable/layout
+            if echo "$BASENAME" | grep -qP '^\d{7,}'; then
+              echo "УДАЛЯЕМ проблемный ресурс: $f"
+              rm -f "$f"
+            fi
+          done || true
+          
+          # Чистим gradle кэш — старые артефакты AAPT2 могут вызывать краш демона
+          find ~/.gradle -name "*.lock" -delete 2>/dev/null || true
+
+      - name: Build Debug APK
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs=-Xmx3g
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=false
+            -Dorg.gradle.configureondemand=false
+        run: |
+          chmod +x ./gradlew
+          
+          ./gradlew :app:assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --info \
+            -Pandroid.skipResourceValidation=true \
+            -Pandroid.enableParallelJsonGen=false \
+            2>&1 | tee build_output.log
+          
+          # Показываем итог
+          echo "=== Результат сборки ==="
+          find . -name "*.apk" -path "*/debug/*" 2>/dev/null && echo "APK найден!" || echo "APK не найден"
+
+      - name: Show error context on failure
+        if: failure()
+        run: |
+          echo "=== Последние 100 строк лога ==="
+          tail -100 build_output.log || true
+          echo "=== AAPT2 ошибки ==="
+          grep -i "aapt2\|error\|failed" build_output.log | tail -50 || true
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winlator-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Upload build log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-log
+          path: build_output.log
+          retention-days: 3
