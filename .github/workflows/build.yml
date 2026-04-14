@@ -26,7 +26,7 @@ jobs:
       - name: Accept licenses
         run: yes | sdkmanager --licenses
 
-      - name: Install required SDK tools
+      - name: Install required SDK packages
         run: |
           yes | sdkmanager \
             "platform-tools" \
@@ -36,14 +36,15 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Make gradlew executable
+      - name: Grant permission to gradlew
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-debug-apk
+          name: malimail-debug-apk
           path: app/build/outputs/apk/debug/*.apk
