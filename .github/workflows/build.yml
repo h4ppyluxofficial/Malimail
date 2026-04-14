@@ -14,11 +14,9 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Find and Fix Gradlew
+      - name: Grant Permissions and Build
         run: |
+          # Ищем gradlew и даем права, где бы он ни был
           find . -name "gradlew" -exec chmod +x {} +
-          # Если файл не в корне, эта магия его найдет
-
-      - name: Build with Gradle
-        run: |
-          ./gradlew assembleDebug --stacktrace
+          # Запускаем сборку из корня, если не выйдет - попробуем найти путь
+          ./gradlew assembleDebug || (cd $(find . -name "gradlew" -printf '%h' -quit) && ./gradlew assembleDebug)
