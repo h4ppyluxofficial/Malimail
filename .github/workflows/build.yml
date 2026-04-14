@@ -1,16 +1,16 @@
-name: Build MaliMail
+name: MaliMail-Build
 
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false  # меняй на 'recursive' если вдруг нужен OpenXR
+          submodules: false
           fetch-depth: 1
 
       - name: Setup Java 17
@@ -21,7 +21,6 @@ jobs:
 
       - name: Setup Android SDK build-tools
         run: |
-          # Убеждаемся что нужные build-tools установлены
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "build-tools;33.0.2" \
             "platforms;android-33" 2>/dev/null || true
@@ -35,18 +34,14 @@ jobs:
 
       - name: Prepare build environment
         run: |
-          # local.properties — SDK и NDK
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
-          
-          # Явно указываем aapt2 из установленных build-tools
           AAPT2_PATH=$(find $ANDROID_HOME/build-tools -name "aapt2" | sort -V | tail -1)
           echo "Найден aapt2: $AAPT2_PATH"
           echo "android.aapt2FromMavenOverride=$AAPT2_PATH" >> local.properties
 
       - name: Patch settings.gradle
         run: |
-          # Пересоздаём settings.gradle — только :app, без лишних модулей
           cat > settings.gradle << 'EOF'
           pluginManagement {
             repositories {
@@ -62,15 +57,14 @@ jobs:
               mavenCentral()
             }
           }
-          rootProject.name = "Winlator"
+          rootProject.name = "MaliMail"
           include ':app'
           EOF
 
       - name: Patch app/build.gradle
         run: |
           BUILDFILE="app/build.gradle"
-          
-          # Инъекция buildscript только если его нет
+
           if ! grep -q "com.android.tools.build:gradle" "$BUILDFILE"; then
             echo "Добавляем buildscript блок..."
             cat > /tmp/buildscript_header.gradle << 'EOF'
@@ -87,36 +81,43 @@ jobs:
             cat /tmp/buildscript_header.gradle "$BUILDFILE" > /tmp/merged_build.gradle
             mv /tmp/merged_build.gradle "$BUILDFILE"
           fi
-          
-          # namespace — только если нет
+
           if ! grep -q 'namespace' "$BUILDFILE"; then
             sed -i '/android {/a\    namespace "com.winlator"' "$BUILDFILE"
           fi
-          
-          # buildFeatures — только если нет
+
           if ! grep -q 'buildFeatures' "$BUILDFILE"; then
             sed -i '/namespace "com.winlator"/a\    buildFeatures { buildConfig true }' "$BUILDFILE"
           fi
-          
-          echo "=== Итоговый app/build.gradle (первые 40 строк) ==="
+
+          echo "=== app/build.gradle (первые 40 строк) ==="
           head -40 "$BUILDFILE"
 
       - name: Fix broken resources
         run: |
-          # Удаляем файлы с невалидными именами (цифры > 0x7FFFFFFF и т.д.)
-          # AAPT2 падает на именах файлов вида 1000333809.png
-          echo "Ищем потенциально проблемные ресурсы..."
+          echo "Ищем проблемные ресурсы..."
           find app/src/main/res -type f | while read f; do
             BASENAME=$(basename "$f")
-            # Имена не должны начинаться с цифры в большинстве drawable/layout
             if echo "$BASENAME" | grep -qP '^\d{7,}'; then
-              echo "УДАЛЯЕМ проблемный ресурс: $f"
+              echo "УДАЛЯЕМ: $f"
               rm -f "$f"
             fi
           done || true
-          
-          # Чистим gradle кэш — старые артефакты AAPT2 могут вызывать краш демона
           find ~/.gradle -name "*.lock" -delete 2>/dev/null || true
+
+      - name: Generate Gradle Wrapper
+        run: |
+          if [ ! -f "./gradlew" ]; then
+            echo "gradlew не найден, генерируем..."
+            wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip -O /tmp/gradle.zip
+            unzip -q /tmp/gradle.zip -d /tmp/gradle-install
+            GRADLE_BIN=$(find /tmp/gradle-install -name "gradle" -type f | head -1)
+            $GRADLE_BIN wrapper --gradle-version 8.0 --distribution-type bin
+            echo "gradlew создан"
+          else
+            echo "gradlew уже есть"
+          fi
+          chmod +x ./gradlew
 
       - name: Build Debug APK
         env:
@@ -126,8 +127,6 @@ jobs:
             -Dorg.gradle.parallel=false
             -Dorg.gradle.configureondemand=false
         run: |
-          chmod +x ./gradlew
-          
           ./gradlew :app:assembleDebug \
             --no-daemon \
             --stacktrace \
@@ -135,9 +134,8 @@ jobs:
             -Pandroid.skipResourceValidation=true \
             -Pandroid.enableParallelJsonGen=false \
             2>&1 | tee build_output.log
-          
-          # Показываем итог
-          echo "=== Результат сборки ==="
+
+          echo "=== Ищем APK ==="
           find . -name "*.apk" -path "*/debug/*" 2>/dev/null && echo "APK найден!" || echo "APK не найден"
 
       - name: Show error context on failure
@@ -145,21 +143,21 @@ jobs:
         run: |
           echo "=== Последние 100 строк лога ==="
           tail -100 build_output.log || true
-          echo "=== AAPT2 ошибки ==="
+          echo "=== AAPT2 / ERROR строки ==="
           grep -i "aapt2\|error\|failed" build_output.log | tail -50 || true
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: winlator-debug-apk
+          name: malimail-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
-      - name: Upload build log (on failure)
+      - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-failure-log
+          name: malimail-build-failure-log
           path: build_output.log
           retention-days: 3
