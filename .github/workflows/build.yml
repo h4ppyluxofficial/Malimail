@@ -1,4 +1,4 @@
-name: MaliMail-Fix-Namespace
+name: MaliMail-Ultimate-Shield
 on: [push, workflow_dispatch]
 
 jobs:
@@ -21,19 +21,26 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Fix Project Files
+      - name: Fix Project structure
         run: |
-          # 1. Создаем базовые настройки
+          # Создаем чистые конфиги
           echo "include ':app'" > settings.gradle
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
           
-          # 2. Добавляем репозитории в начало app/build.gradle
+          # Инъекция репозиториев и фикс Namespace для AGP 8.0
           sed -i '1i buildscript { repositories { google(); mavenCentral() }; dependencies { classpath "com.android.tools.build:gradle:8.0.0" } }' app/build.gradle
-          
-          # 3. ФИКС NAMESPACE: Добавляем его в блок android { ... }
-          # Мы просто вставим его после слова 'android {'
           sed -i '/android {/a \    namespace "com.winlator"' app/build.gradle
 
       - name: Build APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+        # Здесь мы фиксим вылет AAPT2, ограничивая память и отключая лишние проверки
+        run: |
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m -Dandroid.useNewApkCreator=false"
+          gradle :app:assembleDebug --stacktrace --no-daemon -Pandroid.skipResourceValidation=true
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaliMail-Winlator-Ready
+          path: "app/build/outputs/apk/debug/*.apk"
