@@ -1,44 +1,46 @@
-name: MaliMail-Engine-Build # Даем свое гордое имя ЭТОТ СКРИПТ БЫЛ ИСПРАВЛЕН НЕЙРОНКОЙ ТУТ ЕСТЬ ВАЙБ КОДИНГ
+name: MaliMail# Вайбкодированное чудо запускается с помощью ии
 
 on:
   push:
-    branches: [ "main" ] # Исправили на твою реальную ветку
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ] # Твоя ветка
+  workflow_dispatch: # Добавил кнопку, чтобы запускать билд вручную
 
 jobs:
-  assemble-apk: # Переименовали работу
+  assemble-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4 # Используем стабильную v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Java Environment
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Install Android NDK
+      - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r25c # Без этого твои C++ исходники не соберутся
+          ndk-version: r25c # r25c — база для Winlator проектов
 
-      - name: Manual Project Sync
-        # Вместо "списывания" создаем структуру проекта сами
+      - name: Sync Project Structure
         run: |
+          # Создаем файл настроек, чтобы Gradle увидел модуль app
           echo "include ':app'" > settings.gradle
+          # Прописываем пути, чтобы билд не заблудился
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
 
-      - name: Compile MaliMail
-        # Используем системный gradle, так как обертки (gradlew) у тебя нет
-        run: gradle :app:assembleDebug --stacktrace
+      - name: Build with Gradle Action
+        # Это "умный" способ запуска сборки, который сам подберет нужные настройки
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: :app:assembleDebug --stacktrace -x lint
 
-      - name: Capture Artifact
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Dev-Build
-          # Указываем путь по маске, чтобы точно найти файл
+          name: MaliMail-Alpha
           path: "app/build/outputs/apk/debug/*.apk"
