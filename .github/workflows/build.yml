@@ -7,7 +7,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: List Files
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Create Missing Files
         run: |
-          echo "Бро, смотри что я нашел в репозитории:"
-          ls -R
+          # Создаем пустой settings.gradle, чтобы Gradle признал проект
+          echo "include ':app'" > settings.gradle
+          # Даем Гитхабу понять, что это Android-проект
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Build APK
+        run: |
+          # Используем системный Gradle для сборки модуля app
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaliMail-Ready
+          path: "app/build/outputs/apk/debug/*.apk"
