@@ -1,60 +1,44 @@
-name: Build MaliMail
-on: [push, workflow_dispatch]
+name: MaliMail-Engine-Build # Даем свое гордое имя
+
+on:
+  push:
+    branches: [ "main" ] # Исправили на твою реальную ветку
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
+  assemble-apk: # Переименовали работу
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Используем стабильную v4
 
-      - name: Set up JDK 17
+      - name: Setup Java Environment
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android NDK
+      - name: Install Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r25c
+          ndk-version: r25c # Без этого твои C++ исходники не соберутся
 
-      - name: Fix Project Structure and Plugins
+      - name: Manual Project Sync
+        # Вместо "списывания" создаем структуру проекта сами
         run: |
-          # 1. Создаем корневой build.gradle с репозиториями и плагинами
-          cat <<EOF > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.0'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-
-          # 2. Создаем settings.gradle, чтобы связать всё
           echo "include ':app'" > settings.gradle
-          echo "rootProject.name = 'MaliMail'" >> settings.gradle
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
 
-          # 3. Генерируем Gradle Wrapper нужной версии
-          gradle wrapper --gradle-version 8.1
-          chmod +x gradlew
+      - name: Compile MaliMail
+        # Используем системный gradle, так как обертки (gradlew) у тебя нет
+        run: gradle :app:assembleDebug --stacktrace
 
-      - name: Build APK
-        run: |
-          # Игнорируем ошибки линта и тесты, чтобы быстрее собралось
-          ./gradlew :app:assembleDebug --stacktrace -x lint -x test
-
-      - name: Upload APK
+      - name: Capture Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Debug
-          path: "**/build/outputs/apk/debug/*.apk"
+          name: MaliMail-Dev-Build
+          # Указываем путь по маске, чтобы точно найти файл
+          path: "app/build/outputs/apk/debug/*.apk"
