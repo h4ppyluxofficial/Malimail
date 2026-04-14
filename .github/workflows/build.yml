@@ -1,76 +1,29 @@
-name: MaliMail-Absolute-Final
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+name: Last-Try-MaliMail
+on: [push, workflow_dispatch]
 
 jobs:
-  assemble-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
+      - uses: actions/checkout@v4
+      - name: set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Setup NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
-
-      - name: Reconstruct Project
-        run: |
-          # 1. Создаем настройки
-          echo "include ':app'" > settings.gradle
-          
-          # 2. Указываем пути к инструментам
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
-          
-          # 3. ПЕРЕЗАПИСЫВАЕМ файл модуля app на 100% рабочий шаблон
-          cat <<EOF > app/build.gradle
-          apply plugin: 'com.android.application'
-
-          android {
-              namespace 'com.winlator'
-              compileSdk 33
-              defaultConfig {
-                  applicationId "com.winlator.malimail"
-                  minSdk 24
-                  targetSdk 33
-                  versionCode 1
-                  versionName "1.0-alpha"
-                  ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }
-              }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-              externalNativeBuild {
-                  cmake {
-                      path "src/main/cpp/CMakeLists.txt"
-                  }
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.9.0'
-              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }
-          EOF
-
       - name: Build APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
-
-      - name: Upload
+        run: |
+          # Создаем только самый минимум
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "include ':app'" > settings.gradle
+          # Запускаем сборку
+          gradle :app:assembleDebug --stacktrace
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Built
+          name: MaliMail-Result
           path: "app/build/outputs/apk/debug/*.apk"
