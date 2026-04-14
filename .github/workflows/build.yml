@@ -13,11 +13,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Fix and Build
+      - name: Install Gradle Manually
         run: |
-          # Создаем запускатор с нуля через системный gradle
-          gradle wrapper
-          # Даем права
-          chmod +x gradlew
-          # Запускаем через локальный файл
-          ./gradlew assembleDebug
+          # Принудительно ставим Gradle в систему
+          sudo apt-get update
+          sudo apt-get install -y gradle
+
+      - name: Build APK
+        run: |
+          # Заходим в папку с проектом (если надо) и строим
+          # Мы используем 'gradle', потому что только что его установили
+          gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaliMail-APK
+          path: "**/build/outputs/apk/debug/*.apk"
