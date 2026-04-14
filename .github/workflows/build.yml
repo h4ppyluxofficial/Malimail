@@ -13,20 +13,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install Gradle Manually
+      - name: Install Gradle
         run: |
-          # Принудительно ставим Gradle в систему
           sudo apt-get update
           sudo apt-get install -y gradle
 
       - name: Build APK
         run: |
-          # Заходим в папку с проектом (если надо) и строим
-          # Мы используем 'gradle', потому что только что его установили
-          gradle assembleDebug
+          # Ищем файл settings.gradle, заходим в его папку и строим оттуда
+          PROJECT_ROOT=$(find . -name "settings.gradle" -printf '%h' -quit)
+          cd "$PROJECT_ROOT" && gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MaliMail-APK
-          path: "**/build/outputs/apk/debug/*.apk"
+          path: "**/*.apk"
