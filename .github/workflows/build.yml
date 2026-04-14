@@ -19,33 +19,38 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Initialize Project Structure
+      - name: Fix Project Structure and Plugins
         run: |
-          # Проверяем, где лежит папка 'app'
-          APP_PATH=$(find . -name "build.gradle" -not -path "*/build/*" | grep "/app/" | head -n 1)
-          PROJECT_ROOT=$(dirname $(dirname "$APP_PATH"))
-          
-          if [ -z "$PROJECT_ROOT" ]; then PROJECT_ROOT="."; fi
-          cd "$PROJECT_ROOT"
+          # 1. Создаем корневой build.gradle с репозиториями и плагинами
+          cat <<EOF > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.0'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
 
-          # Если settings.gradle нет — создаем его
-          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
-            echo "include ':app'" > settings.gradle
-            echo "rootProject.name = 'MaliMail'" >> settings.gradle
-          fi
+          # 2. Создаем settings.gradle, чтобы связать всё
+          echo "include ':app'" > settings.gradle
+          echo "rootProject.name = 'MaliMail'" >> settings.gradle
 
-          # Генерируем Gradle Wrapper, если его нет
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper
-          fi
+          # 3. Генерируем Gradle Wrapper нужной версии
+          gradle wrapper --gradle-version 8.1
           chmod +x gradlew
 
       - name: Build APK
         run: |
-          # Ищем путь к созданному/существующему gradlew
-          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
-          cd $(dirname "$GRADLEW_PATH")
-          
+          # Игнорируем ошибки линта и тесты, чтобы быстрее собралось
           ./gradlew :app:assembleDebug --stacktrace -x lint -x test
 
       - name: Upload APK
