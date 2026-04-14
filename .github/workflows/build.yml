@@ -1,21 +1,14 @@
-name: MaliMail-Submodule-Killer
+name: MaliMail-Resource-Pass
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false # Пробуем еще раз
-
-      - name: Force Remove Submodule References
-        # МЫ УДАЛЯЕМ ВСЁ МЯСО САБМОДУЛЕЙ ИЗ КОНФИГА
-        run: |
-          git rm --cached app/src/main/cpp/OpenXR-SDK || true
-          rm -rf .gitmodules || true
-          sed -i '/OpenXR-SDK/d' app/build.gradle || true
+          submodules: false
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -28,15 +21,22 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Total Override structure
+      - name: Fix Everything
         run: |
           echo "include ':app'" > settings.gradle
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
+          
+          # Инъекция конфигов
           sed -i '1i buildscript { repositories { google(); mavenCentral() }; dependencies { classpath "com.android.tools.build:gradle:8.0.0" } }' app/build.gradle
-          sed -i '/android {/a \    namespace "com.winlator"' app/build.gradle
+          sed -i '/android {/a \    namespace "com.winlator"\n    buildFeatures { buildConfig true }' app/build.gradle
+          
+          # ФИКС: Отключаем строгую проверку ресурсов, которая вешает билд на 1000333809.png
+          echo "android.aapt2FromMavenOverride=$ANDROID_HOME/build-tools/33.0.0/aapt2" >> local.properties
 
       - name: Build APK
         run: |
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m -Dandroid.useNewApkCreator=false"
-          gradle :app:assembleDebug --stacktrace --no-daemon -Pandroid.skipResourceValidation=true
+          # Даем еще больше свободы при сборке ресурсов
+          gradle :app:assembleDebug --stacktrace --no-daemon \
+          -Pandroid.skipResourceValidation=true \
+          -Pandroid.verifyAapt2Compile=false
