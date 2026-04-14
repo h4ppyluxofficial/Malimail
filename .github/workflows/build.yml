@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -16,7 +16,14 @@ jobs:
 
       - name: Grant Permissions and Build
         run: |
-          # Ищем gradlew и даем права, где бы он ни был
+          # Находим все gradlew и даем им права
           find . -name "gradlew" -exec chmod +x {} +
-          # Запускаем сборку из корня, если не выйдет - попробуем найти путь
-          ./gradlew assembleDebug || (cd $(find . -name "gradlew" -printf '%h' -quit) && ./gradlew assembleDebug)
+          # Магия: находим папку с gradlew, прыгаем в неё и запускаем сборку
+          GRADLEW_PATH=$(find . -name "gradlew" -printf '%h' -quit)
+          cd "$GRADLEW_PATH" && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaliMail-APK
+          path: "**/*.apk" # Ищет все готовые APK во всех папках
