@@ -1,4 +1,4 @@
-name: Last-Try-MaliMail
+name: MaliMail-Power-Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -6,24 +6,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: set up JDK 17
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Setup NDK
+
+      - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
-      - name: Build APK
+
+      - name: Force Project Sync
         run: |
-          # Создаем только самый минимум
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          # Создаем то, чего не хватает в репозитории Бруно для Гитхаба
           echo "include ':app'" > settings.gradle
-          # Запускаем сборку
-          gradle :app:assembleDebug --stacktrace
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
+          
+          # Убираем проверку версии Gradle, чтобы он не падал на 1-й строке
+          sed -i 's/distributionUrl.*/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.0-all.zip/' gradle/wrapper/gradle-wrapper.properties || true
+
+      - name: Build with System Gradle
+        run: |
+          # Собираем только модуль app, игнорируя мусор в корне
+          gradle :app:assembleDebug --stacktrace --no-daemon -Dorg.gradle.jvmargs="-Xmx2048m"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Result
+          name: MaliMail-Build
           path: "app/build/outputs/apk/debug/*.apk"
