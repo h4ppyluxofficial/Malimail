@@ -90,7 +90,6 @@ jobs:
             sed -i '/namespace "com.winlator"/a\    buildFeatures { buildConfig true }' "$BUILDFILE"
           fi
 
-          # Перезаписываем ndkVersion на r25c
           sed -i 's/ndkVersion "[^"]*"/ndkVersion "25.2.9519653"/' "$BUILDFILE"
           if ! grep -q 'ndkVersion' "$BUILDFILE"; then
             sed -i '/namespace "com.winlator"/a\    ndkVersion "25.2.9519653"' "$BUILDFILE"
@@ -119,8 +118,9 @@ jobs:
             unzip -q /tmp/gradle.zip -d /tmp/gradle-install
             GRADLE_BIN=$(find /tmp/gradle-install -name "gradle" -type f | head -1)
 
-            # Генерируем wrapper в изолированной папке
+            # Создаём минимальный проект чтобы Gradle не ругался
             mkdir -p /tmp/wrapper-gen
+            echo "rootProject.name = 'temp'" > /tmp/wrapper-gen/settings.gradle
             cd /tmp/wrapper-gen
             $GRADLE_BIN wrapper --gradle-version 8.0 --distribution-type bin
 
