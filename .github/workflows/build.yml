@@ -1,14 +1,14 @@
-name: MaliMail-Final-Shield
+name: MaliMail-Force-Correction
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: false # Игнорируем проблемные ссылки OpenXR
+          submodules: false # Игнорируем битые ссылки OpenXR
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -21,9 +21,9 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Auto-Fix Project Structure
-        # Этот блок заменяет битые конфиги Brunodev на рабочие
+      - name: Rebuild Project Structure
         run: |
+          # 1. Создаем чистый корневой билд
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -33,17 +33,21 @@ jobs:
               repositories { google(); mavenCentral() }
           }
           EOF
+
+          # 2. Создаем чистый файл настроек
           echo "include ':app'" > settings.gradle
+          
+          # 3. Указываем пути к инструментам
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
 
-      - name: Force Build With Info
-        # Добавляем --info, чтобы если упадет, мы видели точную причину
-        run: ./gradlew :app:assembleDebug --stacktrace --info --no-daemon || gradle :app:assembleDebug --stacktrace --info --no-daemon
+      - name: Build APK
+        # Запускаем сборку через системный gradle, чтобы не спотыкаться о кэш
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Upload Result
+      - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Winlator-Build-Log
+          name: Build-Output
           path: "app/build/outputs/apk/debug/*.apk"
