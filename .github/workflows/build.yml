@@ -15,23 +15,21 @@ jobs:
 
       - name: Build with Gradle
         run: |
-          # Находим все gradlew и даем права
+          # Ищем папку, где реально лежит settings.gradle
+          target_dir=$(find . -name "settings.gradle" -printf '%h\n' | head -n 1)
+          echo "Реальная папка проекта: $target_dir"
+          cd "$target_dir"
+          # Даем права на gradlew, если он есть
           find . -name "gradlew" -exec chmod +x {} +
           # Запускаем сборку
-          ./gradlew assembleDebug || gradle assembleDebug
-
-      - name: Find and Move APK
-        run: |
-          # Создаем папку для выгрузки
-          mkdir -p output
-          # Ищем любой APK, который создался, и копируем в нашу папку
-          find . -name "*.apk" -exec cp {} ./output/ \;
-          # Выводим список файлов, чтобы мы видели, создалось ли что-то
-          ls -R ./output
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Final-Build
-          path: output/*.apk
-          if-no-files-found: error
+          name: MaliMail-Final
+          path: "**/*.apk"
