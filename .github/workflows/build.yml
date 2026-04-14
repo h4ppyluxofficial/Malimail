@@ -90,6 +90,12 @@ jobs:
             sed -i '/namespace "com.winlator"/a\    buildFeatures { buildConfig true }' "$BUILDFILE"
           fi
 
+          # Перезаписываем ndkVersion на r25c
+          sed -i 's/ndkVersion "[^"]*"/ndkVersion "25.2.9519653"/' "$BUILDFILE"
+          if ! grep -q 'ndkVersion' "$BUILDFILE"; then
+            sed -i '/namespace "com.winlator"/a\    ndkVersion "25.2.9519653"' "$BUILDFILE"
+          fi
+
           echo "=== app/build.gradle (первые 40 строк) ==="
           head -40 "$BUILDFILE"
 
