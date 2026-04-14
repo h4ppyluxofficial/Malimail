@@ -13,20 +13,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build with Gradle
+      - name: Check files
         run: |
-          # Ищем папку, где реально лежит settings.gradle
-          target_dir=$(find . -name "settings.gradle" -printf '%h\n' | head -n 1)
-          echo "Реальная папка проекта: $target_dir"
-          cd "$target_dir"
-          # Даем права на gradlew, если он есть
-          find . -name "gradlew" -exec chmod +x {} +
-          # Запускаем сборку
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug
-          else
-            gradle assembleDebug
-          fi
+          echo "Что вообще есть в репозитории:"
+          ls -R
+
+      - name: Build APK
+        run: |
+          # Пытаемся запустить сборку везде, где пахнет Андроидом
+          chmod +x gradlew || true
+          ./gradlew assembleDebug --stacktrace || gradle assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
