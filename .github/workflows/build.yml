@@ -1,11 +1,12 @@
 name: Build MaliMail
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -13,22 +14,42 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Prepare Project Structure
-        run: |
-          # Создаем главный файл настроек, чтобы Gradle увидел модуль app
-          echo "include ':app'" > settings.gradle
-          # Прописываем путь к SDK
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          # Даем права на выполнение (на всякий случай)
-          chmod +x app/build.gradle
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
 
-      - name: Build with Gradle
+      - name: Initialize Project Structure
         run: |
-          # Запускаем сборку именно модуля app через системный Gradle
-          gradle :app:assembleDebug --stacktrace
+          # Проверяем, где лежит папка 'app'
+          APP_PATH=$(find . -name "build.gradle" -not -path "*/build/*" | grep "/app/" | head -n 1)
+          PROJECT_ROOT=$(dirname $(dirname "$APP_PATH"))
+          
+          if [ -z "$PROJECT_ROOT" ]; then PROJECT_ROOT="."; fi
+          cd "$PROJECT_ROOT"
+
+          # Если settings.gradle нет — создаем его
+          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
+            echo "include ':app'" > settings.gradle
+            echo "rootProject.name = 'MaliMail'" >> settings.gradle
+          fi
+
+          # Генерируем Gradle Wrapper, если его нет
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
+          fi
+          chmod +x gradlew
+
+      - name: Build APK
+        run: |
+          # Ищем путь к созданному/существующему gradlew
+          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
+          cd $(dirname "$GRADLEW_PATH")
+          
+          ./gradlew :app:assembleDebug --stacktrace -x lint -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Build
-          path: "app/build/outputs/apk/debug/*.apk"
+          name: MaliMail-Debug
+          path: "**/build/outputs/apk/debug/*.apk"
