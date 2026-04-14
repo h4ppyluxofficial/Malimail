@@ -7,25 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Check files
+      - name: List Files
         run: |
-          echo "Что вообще есть в репозитории:"
+          echo "Бро, смотри что я нашел в репозитории:"
           ls -R
-
-      - name: Build APK
-        run: |
-          # Пытаемся запустить сборку везде, где пахнет Андроидом
-          chmod +x gradlew || true
-          ./gradlew assembleDebug --stacktrace || gradle assembleDebug --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MaliMail-Final
-          path: "**/*.apk"
