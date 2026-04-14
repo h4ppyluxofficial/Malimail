@@ -1,49 +1,49 @@
-name: MaliMail-Endgame
+name: MaliMail-Ultimate-Fix
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Отключаем рекурсивную подкачку сабмодулей, раз они битые
-          submodules: false 
+          submodules: false # Игнорируем битые сабмодули
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android NDK
+      - name: Setup NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
 
-      - name: Prepare Workspace
+      - name: Inject Root Config
+        # МЫ СОЗДАЕМ КОРНЕВОЙ ФАЙЛ, КОТОРОГО НЕ ХВАТАЛО
         run: |
-          # Создаем базовые конфиги
+          cat <<EOF > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.0.0' }
+          }
+          allprojects {
+              repositories { google(); mavenCentral() }
+          }
+          EOF
           echo "include ':app'" > settings.gradle
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
-          
-          # Пытаемся зафиксить версию Gradle в обертке, если она есть
-          if [ -f "gradle/wrapper/gradle-wrapper.properties" ]; then
-            sed -i 's/distributionUrl.*/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.0-all.zip/' gradle/wrapper/gradle-wrapper.properties
-          fi
 
       - name: Build APK
-        # Собираем с флагом --continue, чтобы увидеть все ошибки сразу
-        run: |
-          gradle :app:assembleDebug --stacktrace --no-daemon --continue
+        # Собираем только модуль app
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload
-        if: always() # Загружаем лог, даже если билд упал
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Build-Artifacts
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/reports/
+          name: MaliMail-Final-Result
+          path: "app/build/outputs/apk/debug/*.apk"
