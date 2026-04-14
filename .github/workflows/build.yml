@@ -1,9 +1,9 @@
-name: MaliMail# Вайбкодированное чудо запускается с помощью ии
+name: MaliMail-Final-Boss
 
 on:
   push:
-    branches: [ "main" ] # Твоя ветка
-  workflow_dispatch: # Добавил кнопку, чтобы запускать билд вручную
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   assemble-apk:
@@ -18,26 +18,24 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r25c # r25c — база для Winlator проектов
+          ndk-version: r25c
 
       - name: Sync Project Structure
         run: |
-          # Создаем файл настроек, чтобы Gradle увидел модуль app
+          # Принудительно создаем структуру, если ее нет
           echo "include ':app'" > settings.gradle
-          # Прописываем пути, чтобы билд не заблудился
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
 
-      - name: Build with Gradle Action
-        # Это "умный" способ запуска сборки, который сам подберет нужные настройки
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: :app:assembleDebug --stacktrace -x lint
+      - name: Build with Gradle
+        # Мы НЕ используем экшен, который ищет gradlew. 
+        # Мы запускаем gradle напрямую через систему.
+        run: |
+          gradle :app:assembleDebug --stacktrace -x lint
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
