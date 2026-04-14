@@ -1,175 +1,68 @@
 name: MaliMail-Build
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      GRADLE_VERSION: 8.0.2
+      AGP_VERSION: 8.0.2
+      NDK_VERSION: 25.2.9519653
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false
-          fetch-depth: 1
+          submodules: recursive
 
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: 17
 
-      - name: Setup Android SDK build-tools
+      # 🔥 СТАБИЛЬНЫЙ GRADLE ВРУЧНУЮ (без wrapper)
+      - name: Install Gradle
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          wget https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
+          unzip gradle-${GRADLE_VERSION}-bin.zip
+          echo "$PWD/gradle-${GRADLE_VERSION}/bin" >> $GITHUB_PATH
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
             "build-tools;33.0.2" \
-            "platforms;android-33" || true
+            "ndk;${NDK_VERSION}" \
+            "cmake;3.22.1"
 
-      - name: Setup NDK r25c
-        id: setup-ndk
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r25c
-          add-to-path: true
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses
 
-      - name: Prepare build environment
+      - name: Create local.properties
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-          AAPT2_PATH=$(find $ANDROID_HOME/build-tools -name "aapt2" | sort -V | tail -1)
-          echo "Найден aapt2: $AAPT2_PATH"
-          echo "android.aapt2FromMavenOverride=$AAPT2_PATH" >> local.properties
-
-      - name: Patch settings.gradle
+      # 💥 СБОРКА БЕЗ WRAPPER
+      - name: Build APK
         run: |
-          cat > settings.gradle << 'EOF'
-          pluginManagement {
-            repositories {
-              google()
-              mavenCentral()
-              gradlePluginPortal()
-            }
-          }
-          dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-              google()
-              mavenCentral()
-            }
-          }
-          rootProject.name = "MaliMail"
-          include ':app'
-          EOF
-
-      - name: Patch app/build.gradle
-        run: |
-          BUILDFILE="app/build.gradle"
-
-          if ! grep -q "com.android.tools.build:gradle" "$BUILDFILE"; then
-            cat > /tmp/buildscript_header.gradle << 'EOF'
-          buildscript {
-            repositories {
-              google()
-              mavenCentral()
-            }
-            dependencies {
-              classpath 'com.android.tools.build:gradle:8.0.0'
-            }
-          }
-          EOF
-            cat /tmp/buildscript_header.gradle "$BUILDFILE" > /tmp/merged_build.gradle
-            mv /tmp/merged_build.gradle "$BUILDFILE"
-          fi
-
-          if ! grep -q 'namespace' "$BUILDFILE"; then
-            sed -i '/android {/a\    namespace "com.winlator"' "$BUILDFILE"
-          fi
-
-          if ! grep -q 'buildFeatures' "$BUILDFILE"; then
-            sed -i '/namespace "com.winlator"/a\    buildFeatures { buildConfig true }' "$BUILDFILE"
-          fi
-
-          sed -i 's/ndkVersion "[^"]*"/ndkVersion "25.2.9519653"/' "$BUILDFILE"
-          if ! grep -q 'ndkVersion' "$BUILDFILE"; then
-            sed -i '/namespace "com.winlator"/a\    ndkVersion "25.2.9519653"' "$BUILDFILE"
-          fi
-
-      - name: Fix broken resources
-        run: |
-          find app/src/main/res -type f | while read f; do
-            BASENAME=$(basename "$f")
-            if echo "$BASENAME" | grep -qP '^\d{7,}'; then
-              echo "Удаляем: $f"
-              rm -f "$f"
-            fi
-          done || true
-
-          find ~/.gradle -name "*.lock" -delete 2>/dev/null || true
-
-      - name: Generate Gradle Wrapper
-        run: |
-          if [ ! -f "./gradlew" ]; then
-            wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip -O /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /tmp/gradle-install
-            GRADLE_BIN=$(find /tmp/gradle-install -name "gradle" -type f | head -1)
-
-            mkdir -p /tmp/wrapper-gen
-            echo "rootProject.name = 'temp'" > /tmp/wrapper-gen/settings.gradle
-            cd /tmp/wrapper-gen
-            $GRADLE_BIN wrapper --gradle-version 8.0 --distribution-type bin
-
-            cd $GITHUB_WORKSPACE
-            cp /tmp/wrapper-gen/gradlew ./gradlew
-            cp /tmp/wrapper-gen/gradlew.bat ./gradlew.bat 2>/dev/null || true
-            mkdir -p gradle/wrapper
-            cp /tmp/wrapper-gen/gradle/wrapper/gradle-wrapper.jar ./gradle/wrapper/
-            cp /tmp/wrapper-gen/gradle/wrapper/gradle-wrapper.properties ./gradle/wrapper/
-          fi
-
-          chmod +x ./gradlew
-
-      - name: Build Debug APK
-        run: |
-          set -o pipefail
-
-          ./gradlew :app:assembleDebug \
+          gradle :app:assembleDebug \
             --no-daemon \
-            --stacktrace \
-            --info \
-            -Pandroid.skipResourceValidation=true \
-            -Pandroid.enableParallelJsonGen=false \
-            2>&1 | tee build_output.log
+            --stacktrace
 
-          echo "=== Проверка APK ==="
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "APK найден!"
-          else
-            echo "APK НЕ найден!"
-            exit 1
-          fi
-
-      - name: Show error context on failure
-        if: failure()
-        run: |
-          echo "=== Последние 100 строк ==="
-          tail -100 build_output.log || true
-
-          echo "=== Ошибки ==="
-          grep -i "error\|failed\|exception" build_output.log | tail -50 || true
+      - name: Find APK
+        run: find . -name "*.apk"
 
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: malimail-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: malimail-build-failure-log
-          path: build_output.log
-          retention-days: 3
+          name: malimail-apk
+          path: app/build/outputs/apk/debug/*.apk
