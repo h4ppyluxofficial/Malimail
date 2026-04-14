@@ -14,16 +14,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant Permissions and Build
+      - name: Build APK
         run: |
-          # Находим все gradlew и даем им права
-          find . -name "gradlew" -exec chmod +x {} +
-          # Магия: находим папку с gradlew, прыгаем в неё и запускаем сборку
-          GRADLEW_PATH=$(find . -name "gradlew" -printf '%h' -quit)
-          cd "$GRADLEW_PATH" && ./gradlew assembleDebug
+          # Заходим прямо в папку app, где ты нашёл файл
+          cd app
+          # Даем права на запуск
+          chmod +x gradlew
+          # Запускаем сборку
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MaliMail-APK
-          path: "**/*.apk" # Ищет все готовые APK во всех папках
+          path: "**/build/outputs/apk/debug/*.apk"
