@@ -13,14 +13,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Gradle Wrapper and Build
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build with Gradle
         run: |
-          # 1. Генерируем gradlew, раз его нет
-          gradle wrapper
-          # 2. Даем права
-          chmod +x gradlew
-          # 3. Запускаем сборку
-          ./gradlew assembleDebug
+          # Пытаемся запустить сборку напрямую через установленный Gradle
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
