@@ -1,4 +1,4 @@
-name: MaliMail-Final-Boss
+name: MaliMail-Absolute-Final
 
 on:
   push:
@@ -23,27 +23,54 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Fix Project Files
+      - name: Reconstruct Project
         run: |
-          # Создаем правильный settings.gradle
+          # 1. Создаем настройки
           echo "include ':app'" > settings.gradle
           
-          # Создаем правильный local.properties
+          # 2. Указываем пути к инструментам
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
           
-          # Самое важное: если build.gradle кривой, мы его подправим. 
-          # Мы добавим Google репозитории в начало, чтобы он мог скачать плагины.
-          sed -i '1i buildscript { repositories { google(); mavenCentral() }; dependencies { classpath "com.android.tools.build:gradle:8.0.0" } }' app/build.gradle
-          sed -i '1i allprojects { repositories { google(); mavenCentral() } }' app/build.gradle
+          # 3. ПЕРЕЗАПИСЫВАЕМ файл модуля app на 100% рабочий шаблон
+          cat <<EOF > app/build.gradle
+          apply plugin: 'com.android.application'
+
+          android {
+              namespace 'com.winlator'
+              compileSdk 33
+              defaultConfig {
+                  applicationId "com.winlator.malimail"
+                  minSdk 24
+                  targetSdk 33
+                  versionCode 1
+                  versionName "1.0-alpha"
+                  ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              externalNativeBuild {
+                  cmake {
+                      path "src/main/cpp/CMakeLists.txt"
+                  }
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.9.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+          }
+          EOF
 
       - name: Build APK
-        run: |
-          # Используем флаг --no-daemon для стабильности на слабых серверах
-          gradle :app:assembleDebug --stacktrace --no-daemon -x lint
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Alpha
+          name: MaliMail-Built
           path: "app/build/outputs/apk/debug/*.apk"
