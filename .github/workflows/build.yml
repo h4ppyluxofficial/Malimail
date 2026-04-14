@@ -13,20 +13,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Missing Files
+      - name: Prepare Project Structure
         run: |
-          # Создаем пустой settings.gradle, чтобы Gradle признал проект
+          # Создаем главный файл настроек, чтобы Gradle увидел модуль app
           echo "include ':app'" > settings.gradle
-          # Даем Гитхабу понять, что это Android-проект
+          # Прописываем путь к SDK
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+          # Даем права на выполнение (на всякий случай)
+          chmod +x app/build.gradle
 
-      - name: Build APK
+      - name: Build with Gradle
         run: |
-          # Используем системный Gradle для сборки модуля app
+          # Запускаем сборку именно модуля app через системный Gradle
           gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MaliMail-Ready
+          name: MaliMail-Build
           path: "app/build/outputs/apk/debug/*.apk"
