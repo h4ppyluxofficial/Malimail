@@ -118,7 +118,19 @@ jobs:
             wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip -O /tmp/gradle.zip
             unzip -q /tmp/gradle.zip -d /tmp/gradle-install
             GRADLE_BIN=$(find /tmp/gradle-install -name "gradle" -type f | head -1)
+
+            # Генерируем wrapper в изолированной папке
+            mkdir -p /tmp/wrapper-gen
+            cd /tmp/wrapper-gen
             $GRADLE_BIN wrapper --gradle-version 8.0 --distribution-type bin
+
+            # Копируем в проект
+            cd $GITHUB_WORKSPACE
+            cp /tmp/wrapper-gen/gradlew ./gradlew
+            cp /tmp/wrapper-gen/gradlew.bat ./gradlew.bat 2>/dev/null || true
+            mkdir -p gradle/wrapper
+            cp /tmp/wrapper-gen/gradle/wrapper/gradle-wrapper.jar ./gradle/wrapper/
+            cp /tmp/wrapper-gen/gradle/wrapper/gradle-wrapper.properties ./gradle/wrapper/
             echo "gradlew создан"
           else
             echo "gradlew уже есть"
