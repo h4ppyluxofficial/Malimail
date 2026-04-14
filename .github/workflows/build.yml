@@ -1,4 +1,4 @@
-name: MaliMail-Engine-Build # Даем свое гордое имя
+name: MaliMail-Engine-Build # Даем свое гордое имя ЭТОТ СКРИПТ БЫЛ ИСПРАВЛЕН НЕЙРОНКОЙ ТУТ ЕСТЬ ВАЙБ КОДИНГ
 
 on:
   push:
