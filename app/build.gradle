@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.malimail.is.best.mediatek"
+    namespace "com.malimail.mediatek"
 
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.malimail.is.best.for.mediatek"
+        applicationId "com.malimail.mediatek"
         minSdk 26
         targetSdk 33
         versionCode 16
@@ -16,7 +16,6 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 
             ndk {
