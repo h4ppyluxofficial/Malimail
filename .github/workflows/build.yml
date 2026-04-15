@@ -9,20 +9,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout без submodules
+      # 1. Checkout БЕЗ submodules
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: false
           fetch-depth: 0
 
-      # 2. Жёстко убираем следы submodules
-      - name: Remove broken submodules
+      # 2. Удаляем сломанный OpenXR-SDK
+      - name: Remove broken submodule
         run: |
           rm -f .gitmodules || true
-          git config --global submodule.recurse false
-          git rm -r --cached app/src/main/cpp/OpenXR-SDK || true
           rm -rf app/src/main/cpp/OpenXR-SDK || true
+          git config --global submodule.recurse false
 
       # 3. Java
       - name: Set up JDK 17
@@ -35,8 +34,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 5. SDK packages
-      - name: Install SDK
+      # 5. SDK tools
+      - name: Install SDK packages
         run: |
           yes | sdkmanager \
             "platform-tools" \
@@ -51,20 +50,28 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      # 8. Скачиваем нормальный Gradle (без wrapper)
+      # 8. Gradle install (без wrapper)
       - name: Install Gradle
         run: |
           wget https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle.zip
           unzip -q gradle.zip
           echo "$PWD/gradle-8.0.2/bin" >> $GITHUB_PATH
 
-      # 9. Build APK
+      # 9. BUILD (С ЛОГАМИ)
       - name: Build Debug APK
         run: |
-          gradle :app:assembleDebug --no-daemon --stacktrace
+          gradle :app:assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
 
-      # 10. Upload APK
+      # 10. Показываем ошибку если упало
+      - name: Show build log on failure
+        if: failure()
+        run: |
+          echo "=== LAST LOG ==="
+          tail -200 build.log || true
+
+      # 11. Upload APK
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: mali-mail-apk
