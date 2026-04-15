@@ -1,12 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdk 30
+    namespace "com.MaliMail.is.best.for.MediaTek"
+
+    compileSdk 33
 
     defaultConfig {
-        applicationId 'com.winlator'
-        minSdkVersion 26
-        targetSdkVersion 28
+        applicationId "com.winlator"
+        minSdk 26
+        targetSdk 33
         versionCode 16
         versionName "7.1"
     }
@@ -22,11 +24,11 @@ android {
         }
     }
 
-    lintOptions {
+    lint {
         checkReleaseBuilds false
     }
 
-    ndkVersion '22.1.7171670'
+    ndkVersion '25.2.9519653'
 
     externalNativeBuild {
         cmake {
@@ -37,10 +39,10 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.2.0'
-    implementation 'androidx.preference:preference:1.1.1'
-    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'com.google.android.material:material:1.9.0'
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
-    implementation 'org.tukaani:xz:1.7'
-    implementation 'org.apache.commons:commons-compress:1.20'
+    implementation 'org.tukaani:xz:1.9'
+    implementation 'org.apache.commons:commons-compress:1.23.0'
 }
