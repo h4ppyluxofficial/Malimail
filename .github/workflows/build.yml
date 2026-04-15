@@ -9,18 +9,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repo (NO SUBMODULES)
         uses: actions/checkout@v4
         with:
           submodules: false
-          fetch-depth: 0
+          fetch-depth: 1
+          clean: true
 
-      - name: Remove broken OpenXR-SDK submodule
+      - name: HARD clean repo (fix OpenXR submodule crash)
         run: |
           git config --global submodule.recurse false
           rm -f .gitmodules || true
+          rm -rf .git/modules || true
           git submodule deinit -f --all || true
-          rm -rf app/src/main/cpp/OpenXR-SDK || true
+          git clean -fdx || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -44,14 +46,15 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      # ❗ ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew || true
+      - name: Install Gradle
+        run: |
+          wget https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-8.0.2/bin" >> $GITHUB_PATH
 
-      # ❗ СБОРКА ЧЕРЕЗ WRAPPER
       - name: Build Debug APK
         run: |
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace --info
+          gradle :app:assembleDebug --no-daemon --stacktrace --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
