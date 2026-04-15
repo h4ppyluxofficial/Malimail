@@ -9,15 +9,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo (NO SUBMODULES)
+      - name: Checkout (NO SUBMODULES)
         uses: actions/checkout@v4
         with:
           submodules: false
           fetch-depth: 0
 
-      - name: Disable git submodules completely
+      - name: Disable submodules completely
         run: |
           rm -f .gitmodules || true
+          git submodule deinit -f --all || true
           git config --global submodule.recurse false
 
       - name: Set up JDK 17
@@ -29,7 +30,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install SDK packages
+      - name: Install SDK tools
         run: |
           yes | sdkmanager \
             "platform-tools" \
@@ -42,15 +43,16 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build Debug APK
+      - name: Build APK (NO GRADLE WRAPPER)
         run: |
-          ./gradlew :app:assembleDebug --stacktrace --no-daemon
+          wget https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle.zip
+          unzip -q gradle.zip
+          export PATH=$PWD/gradle-8.0.2/bin:$PATH
+
+          gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: malimail-apk
+          name: MaliMail-debug-apk
           path: app/build/outputs/apk/debug/*.apk
