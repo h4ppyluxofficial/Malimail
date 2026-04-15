@@ -54,17 +54,18 @@ jobs:
         run: |
           mkdir -p gradle/wrapper
 
-          # Скачиваем jar через Maven — единственный правильный источник
-          curl -sL "https://search.maven.org/remotecontent?filepath=org/gradle/gradle-wrapper/8.0/gradle-wrapper-8.0.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar || \
-          # Запасной вариант
-          curl -sL "https://github.com/gradle/gradle/raw/refs/tags/v8.0.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar
+          # Настоящий jar уже есть в репо с другим именем — просто переименовываем
+          if [ -f "gradle/wrapper/gradle-wrapper-8.0.2.jar" ]; then
+            echo "Нашли gradle-wrapper-8.0.2.jar, переименовываем..."
+            cp gradle/wrapper/gradle-wrapper-8.0.2.jar gradle/wrapper/gradle-wrapper.jar
+          else
+            echo "Скачиваем gradle-wrapper.jar..."
+            curl -sL "https://services.gradle.org/distributions/gradle-8.0-wrapper.jar" \
+              -o gradle/wrapper/gradle-wrapper.jar
+          fi
 
-          # Проверяем что jar реально скачался и не пустой
-          ls -lh gradle/wrapper/gradle-wrapper.jar
+          ls -lh gradle/wrapper/
 
-          # Пишем properties
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -73,12 +74,7 @@ jobs:
           zipStorePath=wrapper/dists
           EOF
 
-          # Права на gradlew
           chmod +x ./gradlew
-          
-          # Проверяем структуру
-          echo "=== Gradle wrapper файлы ==="
-          ls -la gradle/wrapper/
 
       - name: Build Debug APK
         env:
