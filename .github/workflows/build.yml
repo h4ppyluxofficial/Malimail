@@ -54,27 +54,28 @@ jobs:
         run: |
           mkdir -p gradle/wrapper
 
-          # Настоящий jar уже есть в репо с другим именем — просто переименовываем
+          # Копируем правильный jar — он уже есть в репо
           if [ -f "gradle/wrapper/gradle-wrapper-8.0.2.jar" ]; then
-            echo "Нашли gradle-wrapper-8.0.2.jar, переименовываем..."
+            echo "Копируем gradle-wrapper-8.0.2.jar -> gradle-wrapper.jar"
             cp gradle/wrapper/gradle-wrapper-8.0.2.jar gradle/wrapper/gradle-wrapper.jar
           else
-            echo "Скачиваем gradle-wrapper.jar..."
-            curl -sL "https://services.gradle.org/distributions/gradle-8.0-wrapper.jar" \
-              -o gradle/wrapper/gradle-wrapper.jar
+            echo "ОШИБКА: gradle-wrapper-8.0.2.jar не найден!"
+            ls -la gradle/wrapper/
+            exit 1
           fi
 
-          ls -lh gradle/wrapper/
-
+          # Перезаписываем properties с правильной версией
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0.2-bin.zip
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
 
           chmod +x ./gradlew
+          echo "=== Итог ==="
+          ls -lh gradle/wrapper/
 
       - name: Build Debug APK
         env:
