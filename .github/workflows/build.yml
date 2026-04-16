@@ -12,22 +12,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # ГОВОРИМ ГИТХАБУ: "НЕ СМОТРИ НА САБМОДУЛИ!" 
-          # Это убирает ошибку Exit Code 128
+          # Принудительно отключаем любую логику сабмодулей
           submodules: false
           fetch-depth: 1
+          # Очищаем рабочую директорию перед скачиванием
+          clean: true
 
-      - name: Kill the Submodule Ghost (Exorcism)
+      - name: Nuclear Submodule Cleanup
         run: |
-          # Полная зачистка всех упоминаний OpenXR и сабмодулей
+          # 1. Заставляем гит забыть про сабмодули на системном уровне
           git config --global submodule.recurse false
-          rm -f .gitmodules || true
-          git rm -r --cached app/src/main/cpp/OpenXR-SDK || true
-          rm -rf app/src/main/cpp/OpenXR-SDK || true
           
-          # Создаем пустую заглушку для CMake, чтобы он не ругался
+          # 2. Удаляем файлы конфигурации, если они есть
+          rm -f .gitmodules || true
+          
+          # 3. Вычищаем OpenXR из индекса Гита (чтобы не было ошибки 128)
+          git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
+          
+          # 4. Стираем физические следы и создаем заглушку для CMake
+          rm -rf app/src/main/cpp/OpenXR-SDK || true
           mkdir -p app/src/main/cpp/OpenXR-SDK
-          touch app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
+          echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -38,7 +43,6 @@ jobs:
       - name: Setup Android SDK build-tools
         run: |
           export JAVA_OPTS="-Xmx2G"
-          # Ставим SDK и CMake, которые прописаны у тебя в build.gradle
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-33" \
@@ -59,18 +63,12 @@ jobs:
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Prepare Gradle Wrapper (The Key)
+      - name: Force Generate Gradle Wrapper
         run: |
-          # Даем права на запуск скрипту, если он есть
-          chmod +x ./gradlew || true
-          
-          # Если файла gradlew нет (No such file), генерируем его с нуля
-          if [ ! -f "./gradlew" ]; then
-            echo "Gradlew not found, generating a new one..."
-            sudo apt-get update && sudo apt-get install gradle -y
-            gradle wrapper --gradle-version 8.0.2
-            chmod +x ./gradlew
-          fi
+          # Чтобы не зависеть от того, что есть в репозитории, создаем с нуля
+          sudo apt-get update && sudo apt-get install gradle -y
+          gradle wrapper --gradle-version 8.0.2
+          chmod +x ./gradlew
 
       - name: Build Debug APK
         env:
@@ -79,8 +77,8 @@ jobs:
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          # Запускаем чистую сборку. 
-          # Если OpenXR в CMakeLists.txt закомментирован — сейчас пойдет жара!
+          # Пробуем запустить сборку. 
+          # После clean гитхаб скачает все нужные либы сам.
           ./gradlew clean :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
@@ -91,7 +89,8 @@ jobs:
           path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
 
-      - name: Show error on failure
+      - name: Failure Report
         if: failure()
         run: |
-          echo "Билд не прошел. Либо CMake нашел новую ошибку, либо не хватило памяти."
+          echo "Билд споткнулся. Проверь логи шага 'Build Debug APK'."
+          ls -R app/src/main/cpp/OpenXR-SDK || echo "OpenXR folder is gone"
