@@ -22,7 +22,6 @@ jobs:
           rm -rf .git/modules || true
           git submodule deinit -f --all 2>/dev/null || true
           rm -rf app/src/main/cpp/OpenXR-SDK || true
-          # Создаем пустую папку, если код ее требует, но она удалена
           mkdir -p app/src/main/cpp/OpenXR-SDK
 
       - name: Setup Java 17
@@ -33,7 +32,6 @@ jobs:
 
       - name: Setup Android SDK build-tools
         run: |
-          # Увеличиваем лимиты памяти для SDK manager
           export JAVA_OPTS="-Xmx2G"
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
@@ -53,15 +51,15 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
-          # Добавляем путь к cmake, это критично для Winlator
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Fix Gradle wrapper
+      - name: Force Regenerate Gradle Wrapper
         run: |
-          mkdir -p gradle/wrapper
-          # Если файла нет, скачиваем его, а не просто копируем
-          wget https://github.com/gradle/gradle/raw/v8.0.2/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar
+          # Ставим системный gradle, чтобы оживить проект
+          sudo apt-get update && sudo apt-get install gradle -y
+          gradle wrapper --gradle-version 8.0.2
           
+          # Перезаписываем свойства для уверенности
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -69,16 +67,10 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
-
-          cat > ./gradlew << 'GRADLEW'
-          #!/bin/sh
-          APP_HOME="$(cd "$(dirname "$0")" && pwd)"
-          exec java \
-            -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
-            org.gradle.wrapper.GradleWrapperMain "$@"
-          GRADLEW
-
+          
           chmod +x ./gradlew
+          echo "=== Проверка структуры Gradle ==="
+          ls -R gradle/
 
       - name: Build Debug APK
         env:
@@ -88,20 +80,19 @@ jobs:
             -Dorg.gradle.parallel=false
             -Dorg.gradle.configureondemand=true
         run: |
-          # Сначала пробуем просто собрать проект без тестов
-          ./gradlew :app:assembleDebug \
+          # Собираем через bash, игнорируя тесты
+          bash ./gradlew :app:assembleDebug \
             --no-daemon \
             --stacktrace \
-            --info \
             -x test \
             2>&1 | tee build_output.log
 
       - name: Show error context on failure
         if: failure()
         run: |
-          echo "=== LAST 200 LINES OF LOG ==="
+          echo "=== ХВОСТ ЛОГА (200 СТРОК) ==="
           tail -n 200 build_output.log || true
-          echo "=== SEARCHING FOR SPECIFIC ERRORS ==="
+          echo "=== ПОИСК ОШИБОК ==="
           grep -iE "error|failed|exception|aapt2" build_output.log | head -n 50 || true
 
       - name: Upload APK
