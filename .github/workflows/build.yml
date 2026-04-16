@@ -12,20 +12,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Принудительно отключаем сабмодули на уровне экшена
           submodules: false
           fetch-depth: 1
           clean: true
 
-      - name: Hard Reset Submodule Index
+      - name: Nuclear Submodule Cleanup
         run: |
-          # Вычищаем индекс гита от любых упоминаний сабмодулей
+          # Убиваем все связи с сабмодулями в индексе
           git config --global submodule.recurse false
           git rm -rf --cached .gitmodules || true
           git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
           rm -f .gitmodules || true
           
-          # Создаем заглушку для OpenXR
+          # Чистим папку OpenXR и создаем заглушку
           rm -rf app/src/main/cpp/OpenXR-SDK || true
           mkdir -p app/src/main/cpp/OpenXR-SDK
           echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
@@ -43,38 +42,30 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Setup Android SDK
-        run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.2" \
-            "cmake;3.22.1"
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Force Generate Gradle Wrapper (Clean)
+      - name: Fix and Generate Gradlew
         run: |
-          # Скачиваем дистрибутив напрямую, чтобы не зависеть от системного gradle
+          # Скачиваем чистый Gradle, чтобы он сам создал правильные файлы запуска
           wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip
           unzip -q gradle-8.0.2-bin.zip
           ./gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2
           chmod +x ./gradlew
+          # Фикс прав для папки gradle
+          chmod -R +x gradle/
 
       - name: Build Debug APK
         env:
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
             -Dorg.gradle.daemon=false
-            -Dorg.gradle.parallel=false
         run: |
-          # Собираем дебаг версию
-          ./gradlew clean :app:assembleDebug --no-daemon --stacktrace -x test
+          # Запуск сборки без тестов
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
         if: success()
@@ -83,9 +74,3 @@ jobs:
           name: MaliMail-APK
           path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
-
-      - name: Failure Report
-        if: failure()
-        run: |
-          echo "Билд упал. Проверь логи выше."
-          ls -R app/src/main/cpp/OpenXR-SDK || echo "OpenXR directory issue"
