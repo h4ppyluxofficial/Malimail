@@ -12,18 +12,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Принудительно отключаем сабмодули на уровне экшена
           submodules: false
           fetch-depth: 1
           clean: true
 
-      - name: Nuclear Submodule Cleanup
+      - name: Hard Reset Submodule Index
         run: |
+          # Вычищаем индекс гита от любых упоминаний сабмодулей
           git config --global submodule.recurse false
-          rm -f .gitmodules || true
+          git rm -rf --cached .gitmodules || true
           git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
+          rm -f .gitmodules || true
+          
+          # Создаем заглушку для OpenXR
           rm -rf app/src/main/cpp/OpenXR-SDK || true
           mkdir -p app/src/main/cpp/OpenXR-SDK
-          # Заглушка, чтобы CMake не ругался на отсутствие папки
           echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
       - name: Setup Java 17
@@ -38,11 +42,9 @@ jobs:
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
-          add-to-path: true
 
       - name: Setup Android SDK
         run: |
-          # Устанавливаем только нужное, не дублируя NDK
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-33" \
@@ -56,22 +58,22 @@ jobs:
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Force Generate Gradle Wrapper
+      - name: Force Generate Gradle Wrapper (Clean)
         run: |
-          # Оставляем установку gradle для генерации wrapper, если его нет в репо
-          sudo apt-get update && sudo apt-get install gradle -y
-          gradle wrapper --gradle-version 8.0.2
+          # Скачиваем дистрибутив напрямую, чтобы не зависеть от системного gradle
+          wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip
+          unzip -q gradle-8.0.2-bin.zip
+          ./gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2
           chmod +x ./gradlew
 
       - name: Build Debug APK
         env:
-          # Увеличил лимиты памяти и добавил Metaspace, чтобы jar-файлы не "отваливались"
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          # Выполняем сборку
+          # Собираем дебаг версию
           ./gradlew clean :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
@@ -85,5 +87,5 @@ jobs:
       - name: Failure Report
         if: failure()
         run: |
-          echo "Билд споткнулся. Проверь логи шага 'Build Debug APK'."
-          ls -R app/src/main/cpp/OpenXR-SDK || echo "OpenXR folder is gone"
+          echo "Билд упал. Проверь логи выше."
+          ls -R app/src/main/cpp/OpenXR-SDK || echo "OpenXR directory issue"
