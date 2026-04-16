@@ -12,43 +12,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Принудительно отключаем любую логику сабмодулей
           submodules: false
           fetch-depth: 1
-          # Очищаем рабочую директорию перед скачиванием
           clean: true
 
       - name: Nuclear Submodule Cleanup
         run: |
-          # 1. Заставляем гит забыть про сабмодули на системном уровне
           git config --global submodule.recurse false
-          
-          # 2. Удаляем файлы конфигурации, если они есть
           rm -f .gitmodules || true
-          
-          # 3. Вычищаем OpenXR из индекса Гита (чтобы не было ошибки 128)
           git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
-          
-          # 4. Стираем физические следы и создаем заглушку для CMake
           rm -rf app/src/main/cpp/OpenXR-SDK || true
           mkdir -p app/src/main/cpp/OpenXR-SDK
+          # Заглушка, чтобы CMake не ругался на отсутствие папки
           echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
-
-      - name: Setup Android SDK build-tools
-        run: |
-          export JAVA_OPTS="-Xmx2G"
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.2" \
-            "cmake;3.22.1" "ndk;25.2.9519653" 2>/dev/null || true
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          cache: 'gradle'
 
       - name: Setup NDK r25c
         id: setup-ndk
@@ -56,6 +39,16 @@ jobs:
         with:
           ndk-version: r25c
           add-to-path: true
+
+      - name: Setup Android SDK
+        run: |
+          # Устанавливаем только нужное, не дублируя NDK
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "cmake;3.22.1"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Create local.properties
         run: |
@@ -65,20 +58,20 @@ jobs:
 
       - name: Force Generate Gradle Wrapper
         run: |
-          # Чтобы не зависеть от того, что есть в репозитории, создаем с нуля
+          # Оставляем установку gradle для генерации wrapper, если его нет в репо
           sudo apt-get update && sudo apt-get install gradle -y
           gradle wrapper --gradle-version 8.0.2
           chmod +x ./gradlew
 
       - name: Build Debug APK
         env:
+          # Увеличил лимиты памяти и добавил Metaspace, чтобы jar-файлы не "отваливались"
           GRADLE_OPTS: >-
-            -Dorg.gradle.jvmargs=-Xmx4g
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          # Пробуем запустить сборку. 
-          # После clean гитхаб скачает все нужные либы сам.
+          # Выполняем сборку
           ./gradlew clean :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
