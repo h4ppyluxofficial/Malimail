@@ -12,26 +12,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Отключаем всё, что связано с сабмодулями на уровне экшена
+          # ГОВОРИМ ГИТХАБУ: "НЕ СМОТРИ НА САБМОДУЛИ!" 
+          # Это убирает ошибку Exit Code 128
           submodules: false
           fetch-depth: 1
 
-      - name: Kill the Submodule Ghost
+      - name: Kill the Submodule Ghost (Exorcism)
         run: |
-          # 1. Стираем все системные настройки сабмодулей
+          # Полная зачистка всех упоминаний OpenXR и сабмодулей
           git config --global submodule.recurse false
-          
-          # 2. Удаляем файлы конфигурации сабмодулей, если они просочились
           rm -f .gitmodules || true
-          
-          # 3. Самое важное: вычищаем OpenXR из индекса Гита принудительно
-          # Это уберет ту самую ошибку 128
           git rm -r --cached app/src/main/cpp/OpenXR-SDK || true
-          
-          # 4. Стираем папку физически и создаем пустую заглушку для CMake
           rm -rf app/src/main/cpp/OpenXR-SDK || true
+          
+          # Создаем пустую заглушку для CMake, чтобы он не ругался
           mkdir -p app/src/main/cpp/OpenXR-SDK
-          # Создаем пустой файл, чтобы CMake не ругался на пустую директорию
           touch app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
       - name: Setup Java 17
@@ -43,6 +38,7 @@ jobs:
       - name: Setup Android SDK build-tools
         run: |
           export JAVA_OPTS="-Xmx2G"
+          # Ставим SDK и CMake, которые прописаны у тебя в build.gradle
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-33" \
@@ -63,12 +59,14 @@ jobs:
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Prepare Gradle Wrapper
+      - name: Prepare Gradle Wrapper (The Key)
         run: |
-          # Даем права на запуск
+          # Даем права на запуск скрипту, если он есть
           chmod +x ./gradlew || true
-          # Если файла нет — создаем его через системный gradle
+          
+          # Если файла gradlew нет (No such file), генерируем его с нуля
           if [ ! -f "./gradlew" ]; then
+            echo "Gradlew not found, generating a new one..."
             sudo apt-get update && sudo apt-get install gradle -y
             gradle wrapper --gradle-version 8.0.2
             chmod +x ./gradlew
@@ -81,7 +79,8 @@ jobs:
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          # Запускаем чистую сборку MaliMail
+          # Запускаем чистую сборку. 
+          # Если OpenXR в CMakeLists.txt закомментирован — сейчас пойдет жара!
           ./gradlew clean :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
@@ -95,4 +94,4 @@ jobs:
       - name: Show error on failure
         if: failure()
         run: |
-          echo "Сборка всё еще капризничает. Проверь логи шага Build Debug APK."
+          echo "Билд не прошел. Либо CMake нашел новую ошибку, либо не хватило памяти."
