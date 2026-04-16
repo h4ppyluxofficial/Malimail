@@ -12,20 +12,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Принудительно отключаем автоматическую работу с сабмодулями
           submodules: false
           fetch-depth: 1
           clean: true
 
-      - name: Nuclear Submodule Cleanup
+      - name: Total Submodule Exorcism
         run: |
-          # Убиваем все связи с сабмодулями в индексе
-          git config --global submodule.recurse false
+          # 1. Говорим гиту забыть про сабмодули в текущей сессии
+          git config --local submodule.recurse false
+          
+          # 2. Удаляем упоминания о сабмодулях из индекса (это лечит ошибку 128)
           git rm -rf --cached .gitmodules || true
           git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
-          rm -f .gitmodules || true
           
-          # Чистим папку OpenXR и создаем заглушку
+          # 3. Физически удаляем папку сабмодуля, если она скачалась как пустая ссылка
           rm -rf app/src/main/cpp/OpenXR-SDK || true
+          
+          # 4. Создаем заглушку, чтобы CMake не ругался на пустое место
           mkdir -p app/src/main/cpp/OpenXR-SDK
           echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
@@ -50,13 +54,11 @@ jobs:
 
       - name: Fix and Generate Gradlew
         run: |
-          # Скачиваем чистый Gradle, чтобы он сам создал правильные файлы запуска
+          # Скачиваем чистый Gradle, чтобы избежать ошибок с JAR-файлом
           wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip
           unzip -q gradle-8.0.2-bin.zip
           ./gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2
           chmod +x ./gradlew
-          # Фикс прав для папки gradle
-          chmod -R +x gradle/
 
       - name: Build Debug APK
         env:
@@ -64,7 +66,7 @@ jobs:
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
             -Dorg.gradle.daemon=false
         run: |
-          # Запуск сборки без тестов
+          # Собираем MaliMail
           ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
