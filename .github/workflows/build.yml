@@ -42,7 +42,6 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
-          # Используем CMake 3.23.2 вместо 3.22.1 (более свежая версия)
           echo "cmake.dir=$ANDROID_HOME/cmake/3.23.2" >> local.properties
 
       - name: Fix and Generate Gradlew
@@ -51,6 +50,9 @@ jobs:
           unzip -q gradle-8.0.2-bin.zip
           ./gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2
           chmod +x ./gradlew
+
+      - name: Clean Build
+        run: ./gradlew clean --no-daemon
 
       - name: Build Debug APK
         env:
