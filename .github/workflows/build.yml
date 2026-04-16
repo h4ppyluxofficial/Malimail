@@ -12,24 +12,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Принудительно отключаем автоматическую работу с сабмодулями
           submodules: false
           fetch-depth: 1
           clean: true
 
       - name: Total Submodule Exorcism
         run: |
-          # 1. Говорим гиту забыть про сабмодули в текущей сессии
           git config --local submodule.recurse false
-          
-          # 2. Удаляем упоминания о сабмодулях из индекса (это лечит ошибку 128)
           git rm -rf --cached .gitmodules || true
           git rm -rf --cached app/src/main/cpp/OpenXR-SDK || true
-          
-          # 3. Физически удаляем папку сабмодуля, если она скачалась как пустая ссылка
           rm -rf app/src/main/cpp/OpenXR-SDK || true
-          
-          # 4. Создаем заглушку, чтобы CMake не ругался на пустое место
           mkdir -p app/src/main/cpp/OpenXR-SDK
           echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
@@ -50,11 +42,11 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
-          echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
+          # Используем CMake 3.23.2 вместо 3.22.1 (более свежая версия)
+          echo "cmake.dir=$ANDROID_HOME/cmake/3.23.2" >> local.properties
 
       - name: Fix and Generate Gradlew
         run: |
-          # Скачиваем чистый Gradle, чтобы избежать ошибок с JAR-файлом
           wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip
           unzip -q gradle-8.0.2-bin.zip
           ./gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2
@@ -66,7 +58,6 @@ jobs:
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
             -Dorg.gradle.daemon=false
         run: |
-          # Собираем MaliMail
           ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
