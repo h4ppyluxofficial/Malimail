@@ -54,17 +54,10 @@ jobs:
         run: |
           mkdir -p gradle/wrapper
 
-          # Копируем правильный jar — он уже есть в репо
-          if [ -f "gradle/wrapper/gradle-wrapper-8.0.2.jar" ]; then
-            echo "Копируем gradle-wrapper-8.0.2.jar -> gradle-wrapper.jar"
-            cp gradle/wrapper/gradle-wrapper-8.0.2.jar gradle/wrapper/gradle-wrapper.jar
-          else
-            echo "ОШИБКА: gradle-wrapper-8.0.2.jar не найден!"
-            ls -la gradle/wrapper/
-            exit 1
-          fi
+          # Копируем правильный jar
+          cp gradle/wrapper/gradle-wrapper-8.0.2.jar gradle/wrapper/gradle-wrapper.jar
 
-          # Перезаписываем properties с правильной версией
+          # Перезаписываем properties
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -73,9 +66,19 @@ jobs:
           zipStorePath=wrapper/dists
           EOF
 
+          # Полностью заменяем gradlew на рабочий скрипт
+          cat > ./gradlew << 'GRADLEW'
+          #!/bin/sh
+          APP_HOME="$(cd "$(dirname "$0")" && pwd)"
+          exec java \
+            -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+            org.gradle.wrapper.GradleWrapperMain "$@"
+          GRADLEW
+
           chmod +x ./gradlew
           echo "=== Итог ==="
           ls -lh gradle/wrapper/
+          head -5 ./gradlew
 
       - name: Build Debug APK
         env:
