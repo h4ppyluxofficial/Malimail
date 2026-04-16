@@ -53,24 +53,16 @@ jobs:
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
           echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Force Regenerate Gradle Wrapper
+      - name: Prepare Gradle Wrapper
         run: |
-          # Ставим системный gradle, чтобы оживить проект
-          sudo apt-get update && sudo apt-get install gradle -y
-          gradle wrapper --gradle-version 8.0.2
-          
-          # Перезаписываем свойства для уверенности
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0.2-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          
+          # Просто оживляем то, что у тебя уже есть в репозитории
+          chmod +x ./gradlew || true
+          # Если вдруг файла нет, создаем его через системный gradle
+          if [ ! -f "./gradlew" ]; then
+            sudo apt-get update && sudo apt-get install gradle -y
+            gradle wrapper --gradle-version 8.0.2
+          fi
           chmod +x ./gradlew
-          echo "=== Проверка структуры Gradle ==="
-          ls -R gradle/
 
       - name: Build Debug APK
         env:
@@ -78,35 +70,19 @@ jobs:
             -Dorg.gradle.jvmargs=-Xmx4g
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
-            -Dorg.gradle.configureondemand=true
         run: |
-          # Собираем через bash, игнорируя тесты
-          bash ./gradlew :app:assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            -x test \
-            2>&1 | tee build_output.log
-
-      - name: Show error context on failure
-        if: failure()
-        run: |
-          echo "=== ХВОСТ ЛОГА (200 СТРОК) ==="
-          tail -n 200 build_output.log || true
-          echo "=== ПОИСК ОШИБОК ==="
-          grep -iE "error|failed|exception|aapt2" build_output.log | head -n 50 || true
+          # Мы не используем tee, чтобы GitHub сразу видел ошибку, если она будет
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: MaliMail-APK
-          path: "**/build/outputs/apk/debug/*.apk"
+          path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
 
-      - name: Upload build log on failure
+      - name: Show error on failure
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: malimail-build-failure-log
-          path: build_output.log
-          retention-days: 3
+        run: |
+          echo "Сборка упала. Проверь логи выше или скачай артефакт с логом (если настроен)."
