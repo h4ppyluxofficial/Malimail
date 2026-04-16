@@ -1,4 +1,4 @@
 #!/bin/sh
 
 DIR=`dirname "$0"`
-exec "$DIR/gradle/wrapper/gradle-wrapper.jar" "$@"
+exec java -jar "$DIR/gradle/wrapper/gradle-wrapper.jar" "$@"
