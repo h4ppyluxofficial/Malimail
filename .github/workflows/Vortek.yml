@@ -1,0 +1,36 @@
+name: Sync Vortek to MaliMail
+
+on:
+  workflow_dispatch: # Позволяет запускать вручную кнопкой
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MaliMail (My Repo)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Vortek (Source)
+        uses: actions/checkout@v4
+        with:
+          repository: brunodev85/vortek
+          ref: ab7329c4b445a4abd9b9af91b8148e1ca41464fa
+          path: vortek_temp
+
+      - name: Copy Files
+        run: |
+          # Копируем всё содержимое из временной папки в корень MaliMail
+          cp -rv vortek_temp/* .
+          # Удаляем временную папку, чтобы она не попала в коммит
+          rm -rf vortek_temp
+          echo "Vortek files staged for commit"
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Integrate Vortek core files from brunodev85" || echo "No changes to commit"
+          git push
