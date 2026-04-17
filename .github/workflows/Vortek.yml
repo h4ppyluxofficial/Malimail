@@ -1,36 +1,30 @@
-name: Sync Vortek to MaliMail
+name: Setup Proper Submodule
 
 on:
-  workflow_dispatch: # Позволяет запускать вручную кнопкой
+  workflow_dispatch:
 
 jobs:
-  sync:
+  fix-and-submodule:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout MaliMail (My Repo)
+      - name: Checkout MaliMail
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout Vortek (Source)
-        uses: actions/checkout@v4
-        with:
-          repository: brunodev85/vortek
-          ref: ab7329c4b445a4abd9b9af91b8148e1ca41464fa
-          path: vortek_temp
-
-      - name: Copy Files
-        run: |
-          # Копируем всё содержимое из временной папки в корень MaliMail
-          cp -rv vortek_temp/* .
-          # Удаляем временную папку, чтобы она не попала в коммит
-          rm -rf vortek_temp
-          echo "Vortek files staged for commit"
-
-      - name: Commit and Push changes
+      - name: Cleanup and Add Submodule
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 1. Удаляем файлы, которые "нагрязнили" (если они есть)
+          rm -rf include src CMakeLists.txt LICENSE README.md build.sh logo.png vortek_icd.aarch64.json
+          
+          # 2. Добавляем Vortek как субмодуль в папку 'vortek-sub'
+          # (В корень 'app/src/main/res' нельзя, т.к. там уже есть файлы проекта)
+          git submodule add --force https://github.com/brunodev85/vortek vortek-core
+          
           git add .
-          git commit -m "Integrate Vortek core files from brunodev85" || echo "No changes to commit"
+          git commit -m "Fixed: Removed loose files and added Vortek as proper submodule" || echo "Nothing to fix"
           git push
