@@ -8,36 +8,44 @@
         android:layout_width="430dp"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@drawable/bordered_panel"
-        android:padding="8dp">
+        android:background="@drawable/bordered_panel">
 
         <LinearLayout
             android:id="@+id/LLTableHead"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:background="@drawable/table_head_background">
 
             <TextView
-                style="@style/TableHeadBackground"
+                style="@style/TableHead"
                 android:layout_width="0dp"
                 android:layout_weight="1"
+                android:paddingLeft="8dp"
                 android:text="@string/process_name" />
 
+            <View style="@style/TableHeadRightLine" />
+
             <TextView
-                style="@style/TableHeadBackground"
+                style="@style/TableHead"
                 android:layout_width="60dp"
                 android:text="@string/pid" />
 
+            <View style="@style/TableHeadRightLine" />
+
             <TextView
-                style="@style/TableHeadBackground"
+                style="@style/TableHead"
                 android:layout_width="110dp"
                 android:text="@string/memory" />
 
+            <View style="@style/TableHeadRightLine" />
+
             <View
-                style="@style/TableHeadBackground"
+                style="@style/TableHead"
                 android:layout_width="40dp" />
         </LinearLayout>
+
+        <View style="@style/TableHeadBottomLine" />
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -66,56 +74,14 @@
     </LinearLayout>
 
     <ScrollView
-        android:layout_width="140dp"
+        android:layout_width="145dp"
         android:layout_height="wrap_content"
         android:layout_marginLeft="8dp">
 
         <LinearLayout
+            android:id="@+id/LLPanelList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bordered_panel"
-                android:padding="8dp">
-
-                <TextView
-                    android:id="@+id/TVCPUTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:id="@+id/LLCPUInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bordered_panel"
-                android:padding="8dp"
-                android:layout_marginTop="8dp">
-
-                <TextView
-                    android:id="@+id/TVMemoryTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/TVMemoryInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-        </LinearLayout>
+            android:orientation="vertical" />
     </ScrollView>
 </LinearLayout>

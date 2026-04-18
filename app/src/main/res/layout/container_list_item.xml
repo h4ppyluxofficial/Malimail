@@ -15,7 +15,7 @@
         android:layout_marginRight="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
-        app:tint="@color/colorPrimaryDark" />
+        app:tint="?attr/colorPrimaryVariant" />
 
     <TextView
         android:id="@+id/TVTitle"
@@ -26,8 +26,21 @@
         android:ellipsize="end"
         android:maxLines="1" />
 
-    <ImageButton
-        style="@style/ListMenuButton"
-        android:id="@+id/BTMenu"
-        android:src="@drawable/icon_list_item_menu" />
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <ImageView
+            style="@style/LeftSideButton"
+            android:id="@+id/BTRun"
+            android:layout_marginRight="2dp"
+            android:src="@drawable/icon_run" />
+
+        <ImageView
+            style="@style/RightSideButton"
+            android:id="@+id/BTMenu"
+            android:layout_marginLeft="2dp"
+            android:src="@drawable/icon_list_item_menu" />
+    </LinearLayout>
 </LinearLayout>

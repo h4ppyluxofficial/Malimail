@@ -13,11 +13,46 @@
             android:layout_height="wrap_content"
             android:text="@string/version" />
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Spinner
+                style="@style/ComboBox"
+                android:id="@+id/SVersion"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <LinearLayout
+                style="@style/Toolbox"
+                android:id="@+id/DXVKToolbox">
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:src="@drawable/icon_install"
+                    android:tag="install" />
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:layout_marginRight="0dp"
+                    android:src="@drawable/icon_remove"
+                    android:tag="remove" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ddraw_wrapper" />
+
         <Spinner
             style="@style/ComboBox"
             android:layout_width="match_parent"
-            android:id="@+id/SVersion"
-            android:entries="@array/dxvk_version_entries" />
+            android:id="@+id/SDDrawWrapper"
+            android:entries="@array/ddraw_wrapper_entries" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -39,6 +74,16 @@
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:id="@+id/SMaxDeviceMemory"
-            android:entries="@array/dxvk_max_device_memory_entries" />
+            android:entries="@array/max_device_memory_entries" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/custom_device" />
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:id="@+id/SCustomDevice" />
     </LinearLayout>
 </ScrollView>

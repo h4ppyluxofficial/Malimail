@@ -37,29 +37,33 @@
                 android:layout_width="match_parent" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:text="@string/scale"/>
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/scale"/>
-
-            <TextView
-                android:id="@+id/TVScale"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <SeekBar
+        <com.winlator.widget.SeekBar
             android:id="@+id/SBScale"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:min="50"
-            android:max="150" />
+            app:suffix="%"
+            app:step="5"
+            app:minValue="50"
+            app:maxValue="300" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/opacity" />
+
+        <com.winlator.widget.SeekBar
+            android:id="@+id/SBOpacity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:suffix="%"
+            app:step="5"
+            app:minValue="0"
+            app:maxValue="100" />
 
         <LinearLayout
             android:id="@+id/LLRangeOptions"
@@ -115,64 +119,58 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/LLBindings"
+            android:id="@+id/LLMIDIKeyOptions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
-        <LinearLayout
-            android:id="@+id/LLDPadBindings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
             android:orientation="vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/binding_up" />
+                android:text="@string/note" />
 
             <Spinner
                 style="@style/ComboBox"
-                android:id="@+id/SBindingUp"
-                android:layout_width="match_parent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/binding_right" />
-
-            <Spinner
-                style="@style/ComboBox"
-                android:id="@+id/SBindingRight"
-                android:layout_width="match_parent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/binding_down" />
-
-            <Spinner
-                style="@style/ComboBox"
-                android:id="@+id/SBindingDown"
-                android:layout_width="match_parent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/binding_left" />
-
-            <Spinner
-                style="@style/ComboBox"
-                android:id="@+id/SBindingLeft"
+                android:id="@+id/SNote"
                 android:layout_width="match_parent" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/LLRadialMenuOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bindings" />
+
+            <com.winlator.widget.NumberPicker
+                android:id="@+id/NPBindings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:minValue="3"
+                app:maxValue="6" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/LLBindings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
 
         <CheckBox
             android:id="@+id/CBToggleSwitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/toggle_switch" />
+
+        <CheckBox
+            android:id="@+id/CBMouseMoveMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/move_mouse_when_pressed" />
 
         <LinearLayout
             android:id="@+id/LLCustomTextIcon"

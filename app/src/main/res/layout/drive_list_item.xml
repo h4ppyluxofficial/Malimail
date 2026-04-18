@@ -18,13 +18,15 @@
         android:layout_height="wrap_content"
         android:layout_weight="1" />
 
-    <ImageButton
-        style="@style/ListMenuButton"
-        android:id="@+id/BTSearch"
-        android:src="@drawable/icon_open" />
+    <LinearLayout style="@style/Toolbox">
+        <ImageButton
+            style="@style/ListMenuButton"
+            android:id="@+id/BTSearch"
+            android:src="@drawable/icon_folder_search" />
 
-    <ImageButton
-        style="@style/ListMenuButton"
-        android:id="@+id/BTRemove"
-        android:src="@drawable/icon_remove" />
+        <ImageButton
+            style="@style/ListMenuButton"
+            android:id="@+id/BTRemove"
+            android:src="@drawable/icon_remove" />
+    </LinearLayout>
 </LinearLayout>
