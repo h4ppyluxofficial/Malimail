@@ -5,3 +5,7 @@ dxvk-2.2.tzst
 dxvk-2.3.1.tzst
 dxvk-2.5.2.tzst
 dxvk-2.6.1.tzst
+dxvk-gplall 2.7-1.tzst
+dxvk-async-1.10.1.tzst
+dxvk-async-1.10.3.tzst
+dxvk-async-2.0.tzst
