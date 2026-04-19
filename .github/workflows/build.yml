@@ -30,6 +30,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Fix AAPT2 compatibility on Ubuntu 24.04
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libncurses5 libncurses5-dev || true
+
       - name: Setup Android SDK build-tools
         run: |
           export JAVA_OPTS="-Xmx2G"
@@ -74,7 +79,7 @@ jobs:
             -x test \
             2>&1 | tee build_output.log || true
           echo "=== ОШИБКИ ==="
-          grep -E "error:|Error:|FAILED|CMake|aapt2|Exception" build_output.log | head -60
+          grep -E "error:|Error:|FAILED|aapt2|Exception" build_output.log | head -60
 
       - name: Upload APK
         if: success()
