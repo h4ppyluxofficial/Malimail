@@ -61,28 +61,20 @@ jobs:
           /tmp/gradle-dist/gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2 --project-dir .
           chmod +x ./gradlew
 
-      - name: Build Debug APK
+      - name: Debug processDebugResources
         env:
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs=-Xmx4g
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          ./gradlew :app:assembleDebug \
+          ./gradlew :app:processDebugResources \
             --no-daemon \
             --stacktrace \
-            -x test \
+            --info \
             2>&1 | tee build_output.log || true
-          echo "=== ОШИБКИ ==="
-          grep -E "error:|Error:|FAILED|CMake|aapt2|Exception" build_output.log | head -60
-
-      - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: MaliMail-APK
-          path: "app/build/outputs/apk/debug/*.apk"
-          retention-days: 7
+          echo "=== AAPT2 ERRORS ==="
+          grep -iE "aapt2|error:|FAILED|exception|R\.java|processDebug" build_output.log | head -80
 
       - name: Upload build log
         if: always()
