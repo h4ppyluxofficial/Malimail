@@ -41,7 +41,6 @@ jobs:
 
       - name: Install CMake 3.22.1
         run: |
-          sudo apt-get install -y cmake --only-upgrade || true
           wget -q https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-linux-x86_64.sh
           chmod +x cmake-3.22.1-linux-x86_64.sh
           sudo ./cmake-3.22.1-linux-x86_64.sh --skip-license --prefix=/usr/local
@@ -52,8 +51,15 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
 
-      - name: Fix Gradlew permissions
-        run: chmod +x ./gradlew
+      - name: Fix gradle-wrapper.jar
+        run: |
+          # Скачиваем дистрибутив и достаём правильный jar из него
+          wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle-bin.zip
+          unzip -p gradle-bin.zip gradle-8.0.2/lib/gradle-wrapper.jar > gradle/wrapper/gradle-wrapper.jar
+          # Проверяем что jar валидный (должен быть ~60КБ с Main-Class)
+          ls -lh gradle/wrapper/gradle-wrapper.jar
+          unzip -p gradle/wrapper/gradle-wrapper.jar META-INF/MANIFEST.MF | head -5
+          chmod +x ./gradlew
 
       - name: Clean Build
         run: ./gradlew clean --no-daemon
