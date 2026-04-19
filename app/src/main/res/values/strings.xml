@@ -299,7 +299,7 @@
     <string name="system_font">System Font</string>
     <string name="vulkan_version">Vulkan Version</string>
     <string name="exposed_extensions">Exposed Extensions</string>
-    <string name="multiselection_combobox_display_text">%d of %d items</string>
+    <string name="multiselection_combobox_display_text" formatted="false">%d of %d items</string>
     <string name="voltage">Voltage</string>
     <string name="current">Current</string>
     <string name="capacity">Capacity</string>
