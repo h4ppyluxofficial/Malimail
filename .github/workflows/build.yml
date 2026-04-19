@@ -30,6 +30,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Fix AAPT2 compatibility on Ubuntu 24.04
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libncurses5 libncurses5-dev || true
+
       - name: Setup Android SDK build-tools
         run: |
           export JAVA_OPTS="-Xmx2G"
@@ -61,20 +66,28 @@ jobs:
           /tmp/gradle-dist/gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2 --project-dir .
           chmod +x ./gradlew
 
-      - name: Debug processDebugResources
+      - name: Build Debug APK
         env:
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs=-Xmx4g
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
         run: |
-          ./gradlew :app:processDebugResources \
+          ./gradlew :app:assembleDebug \
             --no-daemon \
             --stacktrace \
-            --info \
+            -x test \
             2>&1 | tee build_output.log || true
-          echo "=== AAPT2 ERRORS ==="
-          grep -iE "aapt2|error:|FAILED|exception|R\.java|processDebug" build_output.log | head -80
+          echo "=== ОШИБКИ ==="
+          grep -E "error:|Error:|FAILED|aapt2|Exception" build_output.log | head -60
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaliMail-APK
+          path: "app/build/outputs/apk/debug/*.apk"
+          retention-days: 7
 
       - name: Upload build log
         if: always()
