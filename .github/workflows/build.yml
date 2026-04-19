@@ -1,37 +1,75 @@
-name: Build Winlator APK
+name: MaliMail-Build
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch: # Позволяет запускать сборку вручную
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive # Важно для Winlator, так как он использует субмодули
+          submodules: false
+          fetch-depth: 1
+          clean: true
 
-      - name: Set up JDK 17
+      - name: Remove OpenXR-SDK
+        run: |
+          git config --local submodule.recurse false
+          git rm -rf --cached .gitmodules 2>/dev/null || true
+          git rm -rf --cached app/src/main/cpp/OpenXR-SDK 2>/dev/null || true
+          rm -rf app/src/main/cpp/OpenXR-SDK
+          mkdir -p app/src/main/cpp/OpenXR-SDK
+          echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" \
+            > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+          java-version: '17'
+          cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup NDK r25c
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
 
-      - name: Build with Gradle
-        run: ./gradlew assembleDebug # Собирает дебаг-версию. Для релизной используйте assembleRelease
+      - name: Install CMake 3.22.1
+        run: |
+          sudo apt-get install -y cmake --only-upgrade || true
+          wget -q https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-linux-x86_64.sh
+          chmod +x cmake-3.22.1-linux-x86_64.sh
+          sudo ./cmake-3.22.1-linux-x86_64.sh --skip-license --prefix=/usr/local
+          cmake --version
+
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
+
+      - name: Fix Gradlew permissions
+        run: chmod +x ./gradlew
+
+      - name: Clean Build
+        run: ./gradlew clean --no-daemon
+
+      - name: Build Debug APK
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
+            -Dorg.gradle.daemon=false
+        run: |
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: winlator-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: MaliMail-APK
+          path: "app/build/outputs/apk/debug/*.apk"
+          retention-days: 7
