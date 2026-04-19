@@ -60,7 +60,6 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
           /tmp/gradle-dist/gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2 --project-dir .
           chmod +x ./gradlew
-          ls -lh gradle/wrapper/
 
       - name: Build Debug APK
         env:
@@ -73,15 +72,9 @@ jobs:
             --no-daemon \
             --stacktrace \
             -x test \
-            2>&1 | tee build_output.log
-
-      - name: Show error context on failure
-        if: failure()
-        run: |
-          echo "=== LAST 200 LINES ==="
-          tail -n 200 build_output.log || true
-          echo "=== ERRORS ==="
-          grep -iE "error|failed|exception" build_output.log | head -50 || true
+            2>&1 | tee build_output.log || true
+          echo "=== ОШИБКИ ==="
+          grep -E "error:|Error:|FAILED|CMake|aapt2|Exception" build_output.log | head -60
 
       - name: Upload APK
         if: success()
@@ -91,10 +84,10 @@ jobs:
           path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
 
-      - name: Upload build log on failure
-        if: failure()
+      - name: Upload build log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-failure-log
+          name: build-log
           path: build_output.log
           retention-days: 3
