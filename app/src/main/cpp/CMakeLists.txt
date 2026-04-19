@@ -5,10 +5,10 @@ project(Winlator)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function-declaration")
 
 # Vortek и Gladio — обычные папки в корне проекта (не субмодули)
-add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../../Vortek
+add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../Vortek
                  ${CMAKE_BINARY_DIR}/Vortek)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../../gladio
+add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../gladio
                  ${CMAKE_BINARY_DIR}/gladio)
 
 add_subdirectory(proot)
