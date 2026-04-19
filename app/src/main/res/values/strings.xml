@@ -347,4 +347,7 @@
     <string name="full">Full</string>
     <string name="ddraw_wrapper" translatable="false">DDraw Wrapper</string>
     <string name="renderer">Renderer</string>
+<string name="arch">Architecture</string>
+    <string name="wine_32bit" translatable="false">Wine 32-bit</string>
+    <string name="wine_64bit" translatable="false">Wine 64-bit</string>
 </resources>
