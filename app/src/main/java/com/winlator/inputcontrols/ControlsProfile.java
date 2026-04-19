@@ -17,10 +17,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-public class ControlsProfile implements Comparable<ControlsProfile> {
+public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot {
     public final int id;
     private String name;
     private float cursorSpeed = 1.0f;
+    private boolean disableMouseInput = false;
     private final ArrayList<ControlElement> elements = new ArrayList<>();
     private final ArrayList<ExternalController> controllers = new ArrayList<>();
     private final List<ControlElement> immutableElements = Collections.unmodifiableList(elements);
@@ -29,12 +30,14 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     private boolean virtualGamepad = false;
     private final Context context;
     private GamepadState gamepadState;
+    private GamepadVibration gamepadVibration;
 
     public ControlsProfile(Context context, int id) {
         this.context = context;
         this.id = id;
     }
 
+    @Override
     public String getName() {
         return name;
     }
@@ -51,13 +54,28 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
         this.cursorSpeed = cursorSpeed;
     }
 
+    public boolean isDisableMouseInput() {
+        return disableMouseInput;
+    }
+
+    public void setDisableMouseInput(boolean disableMouseInput) {
+        this.disableMouseInput = disableMouseInput;
+    }
+
     public boolean isVirtualGamepad() {
         return virtualGamepad;
     }
 
+    @Override
     public GamepadState getGamepadState() {
         if (gamepadState == null) gamepadState = new GamepadState();
         return gamepadState;
+    }
+
+    @Override
+    public GamepadVibration getGamepadVibration() {
+        if (gamepadVibration == null) gamepadVibration = new GamepadVibration(context);
+        return gamepadVibration;
     }
 
     public ExternalController addController(String id) {
@@ -107,6 +125,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             data.put("id", id);
             data.put("name", name);
             data.put("cursorSpeed", Float.valueOf(cursorSpeed));
+            if (disableMouseInput) data.put("disableMouseInput", disableMouseInput);
 
             JSONArray elementsJSONArray = new JSONArray();
             if (!elementsLoaded && file.isFile()) {
@@ -205,28 +224,34 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             JSONArray elementsJSONArray = profileJSONObject.getJSONArray("elements");
             for (int i = 0; i < elementsJSONArray.length(); i++) {
                 JSONObject elementJSONObject = elementsJSONArray.getJSONObject(i);
-                ControlElement element = new ControlElement(inputControlsView);
-                element.setType(ControlElement.Type.valueOf(elementJSONObject.getString("type")));
-                element.setShape(ControlElement.Shape.valueOf(elementJSONObject.getString("shape")));
-                element.setToggleSwitch(elementJSONObject.getBoolean("toggleSwitch"));
-                element.setX((int)(elementJSONObject.getDouble("x") * inputControlsView.getMaxWidth()));
-                element.setY((int)(elementJSONObject.getDouble("y") * inputControlsView.getMaxHeight()));
-                element.setScale((float)elementJSONObject.getDouble("scale"));
-                element.setText(elementJSONObject.getString("text"));
-                element.setIconId(elementJSONObject.getInt("iconId"));
-                if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.valueOf(elementJSONObject.getString("range")));
-                if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.getInt("orientation"));
+
+                ControlElement element = null;
+                if (inputControlsView != null) {
+                    element = new ControlElement(inputControlsView);
+                    element.setType(ControlElement.Type.valueOf(elementJSONObject.getString("type")));
+                    element.setShape(ControlElement.Shape.valueOf(elementJSONObject.getString("shape")));
+                    element.setToggleSwitch(elementJSONObject.getBoolean("toggleSwitch"));
+                    element.setX((int)(elementJSONObject.getDouble("x") * inputControlsView.getMaxWidth()));
+                    element.setY((int)(elementJSONObject.getDouble("y") * inputControlsView.getMaxHeight()));
+                    element.setScale((float)elementJSONObject.getDouble("scale"));
+                    element.setText(elementJSONObject.getString("text"));
+                    element.setIconId(elementJSONObject.getInt("iconId"));
+                    if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.valueOf(elementJSONObject.getString("range")));
+                    if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.getInt("orientation"));
+                    if (elementJSONObject.has("mouseMoveMode")) element.setMouseMoveMode(true);
+                    if (elementJSONObject.has("opacity")) element.setOpacity((float)elementJSONObject.getDouble("opacity"));
+                }
 
                 boolean hasGamepadBinding = true;
                 JSONArray bindingsJSONArray = elementJSONObject.getJSONArray("bindings");
                 for (int j = 0; j < bindingsJSONArray.length(); j++) {
                     Binding binding = Binding.fromString(bindingsJSONArray.getString(j));
-                    element.setBindingAt(j, Binding.fromString(bindingsJSONArray.getString(j)));
+                    if (element != null) element.setBindingAt(j, Binding.fromString(bindingsJSONArray.getString(j)));
                     if (!binding.isGamepad()) hasGamepadBinding = false;
                 }
 
                 if (!virtualGamepad && hasGamepadBinding) virtualGamepad = true;
-                elements.add(element);
+                if (element != null) elements.add(element);
             }
             elementsLoaded = true;
         }

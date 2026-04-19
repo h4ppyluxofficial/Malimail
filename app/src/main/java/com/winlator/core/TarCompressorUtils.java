@@ -16,6 +16,7 @@ import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStr
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -23,9 +24,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class TarCompressorUtils {
     public enum Type {XZ, ZSTD}
+
+    public interface OnExtractFileListener {
+        File onExtractFile(File destination, long size);
+    }
 
     private static void addFile(ArchiveOutputStream tar, File file, String entryName) {
         try {
@@ -77,14 +83,18 @@ public abstract class TarCompressorUtils {
         try (OutputStream outStream = getCompressorOutputStream(type, destination, level);
              TarArchiveOutputStream tar = new TarArchiveOutputStream(outStream)) {
             tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+            boolean skipFirstEntry = files.length == 1 && files[0].getName().equals(".");
             for (File file : files) {
                 if (FileUtils.isSymlink(file)) {
                     addLinkFile(tar, file, file.getName());
                 }
                 else if (file.isDirectory()) {
-                    String basePath = file.getName() + "/";
-                    tar.putArchiveEntry(tar.createArchiveEntry(file, basePath));
-                    tar.closeArchiveEntry();
+                    String basePath = "";
+                    if (!skipFirstEntry) {
+                        basePath = file.getName() + "/";
+                        tar.putArchiveEntry(tar.createArchiveEntry(file, basePath));
+                        tar.closeArchiveEntry();
+                    }
                     addDirectory(tar, file, basePath);
                 }
                 else addFile(tar, file, file.getName());
@@ -169,6 +179,51 @@ public abstract class TarCompressorUtils {
         }
         catch (IOException e) {
             return false;
+        }
+    }
+
+    public static long getContentLength(Type type, Context context, String assetFile, File destination) {
+        AtomicLong totalSizeRef = new AtomicLong();
+        extract(type, context, assetFile, destination, (file, size) -> {
+            totalSizeRef.addAndGet(size);
+            return null;
+        });
+        return totalSizeRef.get();
+    }
+
+    public static byte[] read(Type type, File source, String localPath) {
+        boolean pathIsPrefix = false;
+        boolean pathIsSuffix = false;
+
+        if (localPath.startsWith("*")) {
+            pathIsSuffix = true;
+        }
+        else if (localPath.endsWith("*")) {
+            pathIsPrefix = true;
+        }
+
+        localPath = localPath.replace("*", "");
+        ByteArrayOutputStream dataOutputStream = new ByteArrayOutputStream();
+
+        try (InputStream inStream = getCompressorInputStream(type, new BufferedInputStream(new FileInputStream(source), StreamUtils.BUFFER_SIZE));
+             ArchiveInputStream tar = new TarArchiveInputStream(inStream)) {
+            TarArchiveEntry entry;
+            while ((entry = (TarArchiveEntry)tar.getNextEntry()) != null) {
+                if (!tar.canReadEntryData(entry)) continue;
+                String entryName = entry.getName();
+                boolean match = pathIsSuffix ? entryName.endsWith(localPath) : (pathIsPrefix ? entryName.startsWith(localPath) : entryName.equals(localPath));
+
+                if (match && !entry.isDirectory() && !entry.isSymbolicLink()) {
+                    try (BufferedOutputStream outStream = new BufferedOutputStream(dataOutputStream, StreamUtils.BUFFER_SIZE)) {
+                        if (!StreamUtils.copy(tar, outStream)) return null;
+                    }
+                    return dataOutputStream.toByteArray();
+                }
+            }
+            return null;
+        }
+        catch (IOException e) {
+            return null;
         }
     }
 

@@ -25,7 +25,7 @@ import com.winlator.core.UnitUtils;
 import java.util.Locale;
 
 public class ColorPickerView extends View implements View.OnClickListener {
-    private static final int[] colors = {0xff8f00, 0xd32f2f, 0x9575cd, 0x2e7d32, 0x00838f, 0x0277bd, 0x607d8b, 0x000000};
+    private int[] palette = {0xff8f00, 0xd32f2f, 0x9575cd, 0x2e7d32, 0x00838f, 0x0277bd, 0x607d8b, 0x000000};
     private int currentColor = 0xffffff;
     private final Bitmap colorFrame;
 
@@ -73,11 +73,9 @@ public class ColorPickerView extends View implements View.OnClickListener {
         float startX = (width - rectSize) * 0.5f - UnitUtils.dpToPx(16);
         float startY = (height - rectSize) * 0.5f;
 
-        Paint paint = new Paint();
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setColor(toARGB(currentColor));
         paint.setStyle(Paint.Style.FILL);
-        paint.setAntiAlias(false);
-        paint.setFilterBitmap(false);
         canvas.drawRect(startX, startY, startX + rectSize, startY + rectSize, paint);
 
         Rect srcRect = new Rect(0, 0, colorFrame.getWidth(), colorFrame.getHeight());
@@ -91,6 +89,10 @@ public class ColorPickerView extends View implements View.OnClickListener {
 
     public static int toRGB(int argb) {
         return Color.argb(0, Color.red(argb), Color.green(argb), Color.blue(argb));
+    }
+
+    public void setPalette(int... palette) {
+        this.palette = palette;
     }
 
     @Override
@@ -108,7 +110,7 @@ public class ColorPickerView extends View implements View.OnClickListener {
         params.setMargins((int)UnitUtils.dpToPx(4), 0, 0, 0);
         final PopupWindow[] popupWindow = {null};
 
-        for (final int color : colors) {
+        for (final int color : palette) {
             ImageView imageView = new ImageView(context);
             imageView.setLayoutParams(params);
             imageView.setImageBitmap(color == currentColor ? colorFrameSelected : colorFrame);

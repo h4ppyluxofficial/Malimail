@@ -26,56 +26,67 @@ public class Shortcut {
         this.container = container;
         this.file = file;
 
-        String execArgs = "";
-        Bitmap icon = null;
-        File iconFile = null;
-        String wmClass = "";
+        if (file.isDirectory()) {
+            this.name = file.getName();
+            this.path = null;
+            this.icon = null;
+            this.iconFile = null;
+            this.wmClass = "";
+        }
+        else {
+            String execArgs = "";
+            Bitmap icon = null;
+            File iconFile = null;
+            String wmClass = "";
+            String section = "";
 
-        File[] iconDirs = {container.getIconsDir(64), container.getIconsDir(48), container.getIconsDir(32), container.getIconsDir(16)};
-        String section = "";
+            final short[] iconSizes = {64, 48, 32, 24, 16, 128, 256};
+            int index;
+            for (String line : FileUtils.readLines(file, true)) {
+                if (line.startsWith("#")) continue;
+                if (line.startsWith("[")) {
+                    section = line.substring(1, line.indexOf("]"));
+                }
+                else {
+                    index = line.indexOf("=");
+                    if (index == -1) continue;
+                    String key = line.substring(0, index);
+                    String value = line.substring(index+1);
 
-        int index;
-        for (String line : FileUtils.readLines(file)) {
-            line = line.trim();
-            if (line.isEmpty() || line.startsWith("#")) continue; // Skip empty lines and comments
-            if (line.startsWith("[")) {
-                section = line.substring(1, line.indexOf("]"));
-            }
-            else {
-                index = line.indexOf("=");
-                if (index == -1) continue;
-                String key = line.substring(0, index);
-                String value = line.substring(index+1);
-
-                if (section.equals("Desktop Entry")) {
-                    if (key.equals("Exec")) execArgs = value;
-                    if (key.equals("Icon")) {
-                        for (File iconDir : iconDirs) {
-                            iconFile = new File(iconDir, value+".png");
-                            if (iconFile.isFile()){
-                                icon = BitmapFactory.decodeFile(iconFile.getPath());
-                                break;
+                    if (section.equals("Desktop Entry")) {
+                        if (key.equals("Exec")) execArgs = value;
+                        if (key.equals("Icon")) {
+                            for (short iconSize : iconSizes) {
+                                iconFile = new File(container.getIconsDir(iconSize), value+".png");
+                                if (iconFile.isFile()){
+                                    icon = BitmapFactory.decodeFile(iconFile.getPath());
+                                    break;
+                                }
                             }
                         }
+                        if (key.equals("StartupWMClass")) wmClass = value;
                     }
-                    if (key.equals("StartupWMClass")) wmClass = value;
-                }
-                else if (section.equals("Extra Data")) {
-                    try {
-                        extraData.put(key, value);
+                    else if (section.equals("Extra Data")) {
+                        try {
+                            extraData.put(key, value);
+                        }
+                        catch (JSONException e) {}
                     }
-                    catch (JSONException e) {}
                 }
             }
+
+            this.name = FileUtils.getBasename(file.getPath());
+            this.icon = icon;
+            this.iconFile = iconFile;
+            this.wmClass = wmClass;
+
+            String path = !execArgs.isEmpty() ? StringUtils.unescapeDOSPath(execArgs.substring(execArgs.lastIndexOf("wine ") + 4)) : "";
+            index = path.indexOf("start.exe ");
+            if (index != -1) path = path.substring(index+10);
+
+            this.path = path;
+            Container.checkObsoleteOrMissingProperties(extraData);
         }
-
-        this.name = FileUtils.getBasename(file.getPath());
-        this.icon = icon;
-        this.iconFile = iconFile;
-        this.path = StringUtils.unescape(execArgs.substring(execArgs.lastIndexOf("wine ") + 4));
-        this.wmClass = wmClass;
-
-        Container.checkObsoleteOrMissingProperties(extraData);
     }
 
     public String getExtra(String name) {
@@ -121,5 +132,23 @@ public class Shortcut {
         }
 
         FileUtils.writeString(file, content);
+    }
+
+    public File getLinkFile() {
+        String name = file.getName().replace(".desktop", ".lnk");
+        return new File(file.getParentFile(), name);
+    }
+
+    public void remove() {
+        if (file.isDirectory()) {
+            FileUtils.delete(file);
+        }
+        else {
+            File linkFile = getLinkFile();
+            if (file.delete()) {
+                if (iconFile != null) iconFile.delete();
+                if (linkFile.isFile()) linkFile.delete();
+            }
+        }
     }
 }

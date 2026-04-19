@@ -1,10 +1,11 @@
 package com.winlator.xenvironment.components;
 
+import android.opengl.GLES20;
+
 import androidx.annotation.Keep;
 
-import com.winlator.renderer.GLRenderer;
 import com.winlator.renderer.Texture;
-import com.winlator.xconnector.Client;
+import com.winlator.xconnector.ConnectedClient;
 import com.winlator.xconnector.ConnectionHandler;
 import com.winlator.xconnector.RequestHandler;
 import com.winlator.xconnector.UnixSocketConfig;
@@ -19,7 +20,6 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
     private final XServer xServer;
     private final UnixSocketConfig socketConfig;
     private XConnectorEpoll connector;
-    private long sharedEGLContextPtr;
 
     static {
         System.loadLibrary("virglrenderer");
@@ -34,60 +34,38 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
     public void start() {
         if (connector != null) return;
         connector = new XConnectorEpoll(socketConfig, this, this);
+        connector.setInitialInputBufferCapacity(0);
+        connector.setInitialOutputBufferCapacity(0);
         connector.start();
     }
 
     @Override
     public void stop() {
         if (connector != null) {
-            connector.stop();
+            connector.destroy();
             connector = null;
         }
     }
 
     @Keep
     private void killConnection(int fd) {
-        connector.killConnection(connector.getClient(fd));
-    }
-
-    @Keep
-    private long getSharedEGLContext() {
-        if (sharedEGLContextPtr != 0) return sharedEGLContextPtr;
-        final Thread thread = Thread.currentThread();
-        try {
-            GLRenderer renderer = xServer.getRenderer();
-            renderer.xServerView.queueEvent(() -> {
-                sharedEGLContextPtr = getCurrentEGLContextPtr();
-
-                synchronized(thread) {
-                    thread.notify();
-                }
-            });
-            synchronized (thread) {
-                thread.wait();
-            }
-        }
-        catch (Exception e) {
-            return 0;
-        }
-        return sharedEGLContextPtr;
+        connector.killConnection(connector.getClientWidthFd(fd));
     }
 
     @Override
-    public void handleConnectionShutdown(Client client) {
+    public void handleConnectionShutdown(ConnectedClient client) {
         long clientPtr = (long)client.getTag();
         destroyClient(clientPtr);
     }
 
     @Override
-    public void handleNewConnection(Client client) {
-        getSharedEGLContext();
-        long clientPtr = handleNewConnection(client.clientSocket.fd);
+    public void handleNewConnection(ConnectedClient client) {
+        long clientPtr = handleNewConnection(client.fd);
         client.setTag(clientPtr);
     }
 
     @Override
-    public boolean handleRequest(Client client) throws IOException {
+    public boolean handleRequest(ConnectedClient client) throws IOException {
         long clientPtr = (long)client.getTag();
         handleRequest(clientPtr);
         return true;
@@ -101,7 +79,9 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
         synchronized (drawable.renderLock) {
             drawable.setData(null);
             Texture texture = drawable.getTexture();
-            texture.copyFromFramebuffer(framebuffer, drawable.width, drawable.height);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer);
+            texture.copyFromReadBuffer(drawable.width, drawable.height);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
         }
 
         Runnable onDrawListener = drawable.getOnDrawListener();

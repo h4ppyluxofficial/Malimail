@@ -34,6 +34,10 @@
         "name" : "System Tools",
         "children" : [
             {
+                "name" : "GPUInfo",
+                "path" : "Z:/opt/apps/GPUInfo.exe"
+            },
+            {
                 "name" : "Test Direct3D",
                 "path" : "Z:/opt/apps/TestD3D.exe"
             },
@@ -54,22 +58,27 @@
                 "path" : "C:/windows/system32/cmd.exe"
             },
             {
-                "name" : "Wine Mono Installer",
-                "path" : "C:/windows/system32/control.exe",
-                "cmdArgs" : "appwiz.cpl install_mono",
-                "iconLocation" : "shell32.dll",
-                "iconIndex" : -25
-            },
-            {
-                "name" : "Wine Gecko Installer",
-                "path" : "C:/windows/system32/control.exe",
-                "cmdArgs" : "appwiz.cpl install_gecko",
-                "iconLocation" : "shell32.dll",
-                "iconIndex" : -25
-            },
-            {
                 "name" : "Wine Configuration",
                 "path" : "C:/windows/system32/winecfg.exe"
+            },
+            {
+                "name" : "Installers",
+                "children" : [
+                    {
+                        "name" : "Wine Mono (.NET Framework)",
+                        "path" : "C:/windows/system32/control.exe",
+                        "cmdArgs" : "appwiz.cpl install_mono",
+                        "iconLocation" : "shell32.dll",
+                        "iconIndex" : -25
+                    },
+                    {
+                        "name" : "Wine Gecko (For HTML Pages)",
+                        "path" : "C:/windows/system32/control.exe",
+                        "cmdArgs" : "appwiz.cpl install_gecko",
+                        "iconLocation" : "shell32.dll",
+                        "iconIndex" : -25
+                    }
+                ]
             }
         ]
     }

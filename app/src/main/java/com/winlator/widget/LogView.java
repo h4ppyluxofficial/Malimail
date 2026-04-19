@@ -1,6 +1,7 @@
 package com.winlator.widget;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PointF;
@@ -11,17 +12,23 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.Nullable;
+import androidx.preference.PreferenceManager;
 
+import com.winlator.MainActivity;
 import com.winlator.R;
 import com.winlator.core.AppUtils;
 import com.winlator.core.FileUtils;
+import com.winlator.core.StreamUtils;
 import com.winlator.core.UnitUtils;
 import com.winlator.math.Mathf;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 
 public class LogView extends View {
@@ -37,6 +44,7 @@ public class LogView extends View {
     private boolean scrollingHorizontally = false;
     private boolean scrollingVertically = false;
     private final Object lock = new Object();
+    private final PrintStream printStream;
 
     public LogView(Context context) {
         this(context, null);
@@ -52,7 +60,23 @@ public class LogView extends View {
 
     public LogView(Context context, @Nullable AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
-        FileUtils.delete(getLogFile());
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String logPath = preferences.getString("log_file", getLogFile().getPath());
+        boolean saveToFile = preferences.getBoolean("save_logs_to_file", false);
+
+        File logFile = new File(logPath);
+        FileUtils.delete(logFile);
+
+        if (saveToFile) {
+            PrintStream printStream = null;
+            try {
+                printStream = new PrintStream(new BufferedOutputStream(new FileOutputStream(logFile), StreamUtils.BUFFER_SIZE));
+            }
+            catch (IOException e) {}
+            this.printStream = printStream;
+        }
+        else printStream = null;
     }
 
     @Override
@@ -71,10 +95,11 @@ public class LogView extends View {
 
         synchronized (lock) {
             paint.setStyle(Paint.Style.FILL);
+            Context context = getContext();
 
             if (lines.isEmpty()) {
                 paint.setTextSize(UnitUtils.dpToPx(20));
-                paint.setColor(0xffbdbdbd);
+                paint.setColor(AppUtils.getThemeColor(context, R.attr.colorSecondaryText));
                 String text = getContext().getString(R.string.no_items_to_display);
                 float centerX = (width - paint.measureText(text)) * 0.5f;
                 float centerY = (height - paint.getFontSpacing()) * 0.5f - paint.ascent();
@@ -86,16 +111,20 @@ public class LogView extends View {
             float textHeight = paint.getFontSpacing();
 
             float rowY = -scrollPosition.y;
+            int colorPrimarySurface = AppUtils.getThemeColor(context, R.attr.colorPrimarySurface);
+            int colorSecondarySurface = AppUtils.getThemeColor(context, R.attr.colorSecondarySurface);
+            int colorPrimaryText = AppUtils.getThemeColor(context, R.attr.colorPrimaryText);
+
             for (int i = 0, count = lines.size(); i < count; i++) {
                 if ((rowY + rowHeight) < 0 || rowY >= height) {
                     rowY += rowHeight;
                     continue;
                 }
 
-                paint.setColor((i % 2) != 0 ? 0xffe1f5fe : 0xffffffff);
+                paint.setColor((i % 2) != 0 ? colorPrimarySurface : colorSecondarySurface);
                 canvas.drawRect(-scrollPosition.x, rowY, width, rowY + rowHeight, paint);
 
-                paint.setColor(0xff212121);
+                paint.setColor(colorPrimaryText);
                 float centerY = (rowY - paint.ascent()) + (rowHeight - textHeight) * 0.5f;
                 canvas.drawText(lines.get(i), -scrollPosition.x, centerY, paint);
                 rowY += rowHeight;
@@ -176,27 +205,38 @@ public class LogView extends View {
 
     public void append(String line) {
         synchronized (lock) {
-            lines.add("["+DateFormat.format("HH:mm:ss", System.currentTimeMillis())+"]  "+line.replace("\n", ""));
+            String content = line.replace("\n", "");
+            if (content.isEmpty()) return;
+            String logLine = "["+DateFormat.format("HH:mm:ss", System.currentTimeMillis())+"]  "+content;
+            lines.add(logLine);
+
+            if (printStream != null) {
+                printStream.append(logLine+"\n");
+                printStream.flush();
+            }
             computeScrollSize();
         }
         postInvalidate();
+
+        if (MainActivity.DEBUG_MODE) System.out.println(line);
     }
 
-    private static File getLogFile() {
-        File winlatorDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator");
-        winlatorDir.mkdirs();
-        return new File(winlatorDir, "logs.txt");
+    public static File getLogFile() {
+        File parent = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Winlator");
+        if (!parent.isDirectory()) parent.mkdirs();
+        return new File(parent, "logs.txt");
     }
 
     public void exportToFile() {
         final File logFile = getLogFile();
+        String logPath = logFile.getPath();
         if (logFile.isFile()) logFile.delete();
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile))) {
             synchronized (lock) {
                 for (String line : lines) writer.write(line+"\n");
             }
 
-            String path = logFile.getPath().substring(logFile.getPath().indexOf(Environment.DIRECTORY_DOWNLOADS));
+            String path = logPath.substring(logPath.indexOf(Environment.DIRECTORY_DOCUMENTS));
             Context context = getContext();
             AppUtils.showToast(context, context.getString(R.string.logs_exported_to)+" "+path);
         }

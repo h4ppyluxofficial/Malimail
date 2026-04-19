@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Malimail</string>
+    <string name="app_name">Winlator</string>
     <string name="run">Запустить</string>
     <string name="edit">Редактировать</string>
     <string name="remove">Удалить</string>
@@ -243,7 +243,7 @@
     <string name="system_font">Системный шрифт</string>
     <string name="vulkan_version">Версия Вулкана</string>
     <string name="exposed_extensions">Открытые расширения</string>
-    <string name="multiselection_combobox_display_text" formatted="false">%d of %d items</string>
+    <string name="multiselection_combobox_display_text">%d из %d товаров</string>
     <string name="voltage">Напряжение</string>
     <string name="current">ток</string>
     <string name="capacity">Емкость</string>

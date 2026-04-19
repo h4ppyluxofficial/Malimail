@@ -3,40 +3,54 @@ package com.winlator.renderer;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 
-import com.winlator.XrActivity;
 import com.winlator.xserver.Drawable;
 
 import java.nio.ByteBuffer;
 
 public class Texture {
     protected int textureId = 0;
-    private int wrapS = GLES20.GL_CLAMP_TO_EDGE;
-    private int wrapT = GLES20.GL_CLAMP_TO_EDGE;
-    private int magFilter = GLES20.GL_LINEAR;
-    private int minFilter = GLES20.GL_LINEAR;
-    private int format = GLES11Ext.GL_BGRA;
+    protected int wrapS = GLES20.GL_CLAMP_TO_EDGE;
+    protected int wrapT = GLES20.GL_CLAMP_TO_EDGE;
+    protected int magFilter = GLES20.GL_LINEAR;
+    protected int minFilter = GLES20.GL_LINEAR;
+    protected int format = GLES11Ext.GL_BGRA;
     protected boolean needsUpdate = true;
+    private boolean flipY = false;
 
-    public void allocateTexture(short width, short height, ByteBuffer data) {
+    protected void generateTextureId() {
         int[] textureIds = new int[1];
         GLES20.glGenTextures(1, textureIds, 0);
         textureId = textureIds[0];
+    }
+
+    protected void setTextureParameters() {
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapS);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrapT);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, magFilter);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, minFilter);
+    }
+
+    public void allocateTexture(short width, short height, ByteBuffer data) {
+        generateTextureId();
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4);
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
 
         if (data != null) {
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, format, width, height, 0, format, GLES20.GL_UNSIGNED_BYTE, data);
         }
 
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapS);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrapT);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, magFilter);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, minFilter);
-
+        setTextureParameters();
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        if (XrActivity.isSupported()) XrActivity.getInstance().bindFramebuffer();
+    }
+
+    public boolean isFlipY() {
+        return flipY;
+    }
+
+    public void setFlipY(boolean flipY) {
+        this.flipY = flipY;
     }
 
     public int getWrapS() {
@@ -110,14 +124,12 @@ public class Texture {
         return textureId;
     }
 
-    public void copyFromFramebuffer(int framebuffer, short width, short height) {
+    public void copyFromReadBuffer(short width, short height) {
         if (!isAllocated()) allocateTexture(width, height, null);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
         GLES20.glCopyTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 0, 0, width, height, 0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glFlush();
     }
 
     public void destroy() {

@@ -1,5 +1,6 @@
 package com.winlator;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -11,7 +12,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
@@ -19,6 +19,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.recyclerview.widget.DividerItemDecoration;
@@ -30,7 +31,7 @@ import com.winlator.container.ContainerManager;
 import com.winlator.contentdialog.ContentDialog;
 import com.winlator.contentdialog.StorageInfoDialog;
 import com.winlator.core.PreloaderDialog;
-import com.winlator.xenvironment.ImageFs;
+import com.winlator.xenvironment.RootFS;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,9 +62,13 @@ public class ContainersFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         FrameLayout frameLayout = (FrameLayout)inflater.inflate(R.layout.containers_fragment, container, false);
         recyclerView = frameLayout.findViewById(R.id.RecyclerView);
+        Context context = recyclerView.getContext();
         emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
-        recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
-        recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
+        recyclerView.setLayoutManager(new LinearLayoutManager(context));
+
+        DividerItemDecoration itemDecoration = new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL);
+        itemDecoration.setDrawable(ContextCompat.getDrawable(context, R.drawable.list_item_divider));
+        recyclerView.addItemDecoration(itemDecoration);
         return frameLayout;
     }
 
@@ -80,8 +85,8 @@ public class ContainersFragment extends Fragment {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
-        if (menuItem.getItemId() == R.id.containers_menu_add) {
-            if (!ImageFs.find(getContext()).isValid()) return false;
+        if (menuItem.getItemId() == R.id.menu_item_add) {
+            if (!RootFS.find(getContext()).isValid()) return false;
             FragmentManager fragmentManager = getParentFragmentManager();
             fragmentManager.beginTransaction()
                 .addToBackStack(null)
@@ -96,7 +101,8 @@ public class ContainersFragment extends Fragment {
         private final List<Container> data;
 
         private class ViewHolder extends RecyclerView.ViewHolder {
-            private final ImageButton menuButton;
+            private final ImageView runButton;
+            private final ImageView menuButton;
             private final ImageView imageView;
             private final TextView title;
 
@@ -104,6 +110,7 @@ public class ContainersFragment extends Fragment {
                 super(view);
                 this.imageView = view.findViewById(R.id.ImageView);
                 this.title = view.findViewById(R.id.TVTitle);
+                this.runButton = view.findViewById(R.id.BTRun);
                 this.menuButton = view.findViewById(R.id.BTMenu);
             }
         }
@@ -122,6 +129,7 @@ public class ContainersFragment extends Fragment {
             final Container item = data.get(position);
             holder.imageView.setImageResource(R.drawable.icon_container);
             holder.title.setText(item.getName());
+            holder.runButton.setOnClickListener((view) -> runContainer(item));
             holder.menuButton.setOnClickListener((view) -> showListItemMenu(view, item));
         }
 
@@ -131,29 +139,20 @@ public class ContainersFragment extends Fragment {
         }
 
         private void showListItemMenu(View anchorView, Container container) {
-            final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
+            MainActivity activity = (MainActivity)getActivity();
+            PopupMenu listItemMenu = new PopupMenu(activity, anchorView);
             listItemMenu.inflate(R.menu.container_popup_menu);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
                 switch (menuItem.getItemId()) {
-                    case R.id.container_run:
-                        if (!XrActivity.isSupported()) {
-                            Intent intent = new Intent(context, XServerDisplayActivity.class);
-                            intent.putExtra("container_id", container.id);
-                            context.startActivity(intent);
-                        }
-                        else XrActivity.openIntent(getActivity(), container.id, null);
+                    case R.id.menu_item_file_manager:
+                        activity.showFragment(new ContainerFileManagerFragment(container.id));
                         break;
-                    case R.id.container_edit:
-                        FragmentManager fragmentManager = getParentFragmentManager();
-                        fragmentManager.beginTransaction()
-                            .addToBackStack(null)
-                            .replace(R.id.FLFragmentContainer, new ContainerDetailFragment(container.id))
-                            .commit();
+                    case R.id.menu_item_edit:
+                        activity.showFragment(new ContainerDetailFragment(container.id));
                         break;
-                    case R.id.container_duplicate:
+                    case R.id.menu_item_duplicate:
                         ContentDialog.confirm(getContext(), R.string.do_you_want_to_duplicate_this_container, () -> {
                             preloaderDialog.show(R.string.duplicating_container);
                             manager.duplicateContainerAsync(container, () -> {
@@ -162,7 +161,7 @@ public class ContainersFragment extends Fragment {
                             });
                         });
                         break;
-                    case R.id.container_remove:
+                    case R.id.menu_item_remove:
                         ContentDialog.confirm(getContext(), R.string.do_you_want_to_remove_this_container, () -> {
                             preloaderDialog.show(R.string.removing_container);
                             manager.removeContainerAsync(container, () -> {
@@ -171,13 +170,20 @@ public class ContainersFragment extends Fragment {
                             });
                         });
                         break;
-                    case R.id.container_info:
-                        (new StorageInfoDialog(getActivity(), container)).show();
+                    case R.id.menu_item_info:
+                        (new StorageInfoDialog(activity, container)).show();
                         break;
                 }
                 return true;
             });
             listItemMenu.show();
+        }
+
+        private void runContainer(Container container) {
+            Activity activity = getActivity();
+            Intent intent = new Intent(activity, XServerDisplayActivity.class);
+            intent.putExtra("container_id", container.id);
+            activity.startActivity(intent);
         }
     }
 }

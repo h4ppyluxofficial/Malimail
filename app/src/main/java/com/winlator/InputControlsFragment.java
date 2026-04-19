@@ -13,22 +13,22 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
-import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import androidx.core.widget.ImageViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 
+import com.winlator.contentdialog.ContentDialog;
 import com.winlator.core.AppUtils;
 import com.winlator.core.Callback;
 import com.winlator.core.FileUtils;
@@ -36,15 +36,15 @@ import com.winlator.core.HttpUtils;
 import com.winlator.inputcontrols.ControlsProfile;
 import com.winlator.inputcontrols.ExternalController;
 import com.winlator.inputcontrols.InputControlsManager;
-import com.winlator.math.Mathf;
-import com.winlator.contentdialog.ContentDialog;
 import com.winlator.widget.InputControlsView;
+import com.winlator.widget.SeekBar;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class InputControlsFragment extends Fragment {
@@ -98,55 +98,39 @@ public class InputControlsFragment extends Fragment {
         final Spinner sProfile = view.findViewById(R.id.SProfile);
         loadProfileSpinner(sProfile);
 
-        final TextView tvCursorSpeed = view.findViewById(R.id.TVCursorSpeed);
         final SeekBar sbCursorSpeed = view.findViewById(R.id.SBCursorSpeed);
-        sbCursorSpeed.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvCursorSpeed.setText(progress+"%");
-                if (currentProfile != null) {
-                    currentProfile.setCursorSpeed(progress / 100.0f);
-                    currentProfile.save();
-                }
+        sbCursorSpeed.setOnValueChangeListener((seekBar, value) -> {
+            if (currentProfile != null) {
+                currentProfile.setCursorSpeed(value / 100.0f);
+                currentProfile.save();
             }
+        });
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
+        CheckBox cbDisableMouseInput = view.findViewById(R.id.CBDisableMouseInput);
+        cbDisableMouseInput.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (currentProfile != null) {
+                currentProfile.setDisableMouseInput(isChecked);
+                currentProfile.save();
+            }
         });
 
         updateLayout = () -> {
             if (currentProfile != null) {
-                sbCursorSpeed.setProgress((int)(currentProfile.getCursorSpeed() * 100));
+                sbCursorSpeed.setValue(currentProfile.getCursorSpeed() * 100);
+                cbDisableMouseInput.setChecked(currentProfile.isDisableMouseInput());
             }
-            else sbCursorSpeed.setProgress(100);
+            else {
+                sbCursorSpeed.setValue(100);
+                cbDisableMouseInput.setChecked(false);
+            }
             loadExternalControllers(view);
         };
 
         updateLayout.run();
 
-        final TextView tvUiOpacity = view.findViewById(R.id.TVUiOpacity);
-        SeekBar sbUiOpacity = view.findViewById(R.id.SBOverlayOpacity);
-        sbUiOpacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvUiOpacity.setText(progress+"%");
-                if (fromUser) {
-                    progress = (int)Mathf.roundTo(progress, 5);
-                    seekBar.setProgress(progress);
-                    preferences.edit().putFloat("overlay_opacity", progress / 100.0f).apply();
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
-        sbUiOpacity.setProgress((int)(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY) * 100));
+        SeekBar sbOverlayOpacity = view.findViewById(R.id.SBOverlayOpacity);
+        sbOverlayOpacity.setOnValueChangeListener((seekBar, value) -> preferences.edit().putFloat("overlay_opacity", value / 100.0f).apply());
+        sbOverlayOpacity.setValue(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY) * 100);
 
         view.findViewById(R.id.BTAddProfile).setOnClickListener((v) -> ContentDialog.prompt(context, R.string.profile_name, null, (name) -> {
             currentProfile = manager.createProfile(name);
@@ -189,15 +173,15 @@ public class InputControlsFragment extends Fragment {
         });
 
         view.findViewById(R.id.BTImportProfile).setOnClickListener((v) -> {
-            android.widget.PopupMenu popupMenu = new PopupMenu(context, v);
+            PopupMenu popupMenu = new PopupMenu(context, v);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popupMenu.setForceShowIcon(true);
             popupMenu.inflate(R.menu.open_file_popup_menu);
             popupMenu.setOnMenuItemClickListener((menuItem) -> {
                 int itemId = menuItem.getItemId();
-                if (itemId == R.id.open_file) {
+                if (itemId == R.id.menu_item_open_file) {
                     openProfileFile(sProfile);
                 }
-                else if (itemId == R.id.download_file) {
+                else if (itemId == R.id.menu_item_download_file) {
                     downloadProfileList(sProfile);
                 }
                 return true;
@@ -270,13 +254,13 @@ public class InputControlsFragment extends Fragment {
             activity.preloaderDialog.close();
             if (content != null) {
                 final String[] items = content.split("\n");
-                ContentDialog.showMultipleChoiceList(activity, R.string.import_profile, items, (positions) -> {
+                ContentDialog.showSelectionList(activity, R.string.import_profile, items, true, (positions) -> {
                     if (!positions.isEmpty()) {
                         ContentDialog.confirm(activity, R.string.do_you_want_to_download_the_selected_profiles, () -> downloadSelectedProfiles(sProfile, items, positions));
                     }
                 });
             }
-            else AppUtils.showToast(activity, R.string.unable_to_load_profile_list);
+            else AppUtils.showToast(activity, R.string.a_network_error_occurred);
         }));
     }
 
@@ -326,7 +310,7 @@ public class InputControlsFragment extends Fragment {
 
         if (!controllers.isEmpty()) {
             view.findViewById(R.id.TVEmptyText).setVisibility(View.GONE);
-            String bindingsText = context.getString(R.string.bindings);
+            String bindingsText = context.getString(R.string.bindings).toLowerCase(Locale.ENGLISH);
             for (final ExternalController controller : controllers) {
                 View itemView = inflater.inflate(R.layout.external_controller_list_item, container, false);
                 ((TextView)itemView.findViewById(R.id.TVTitle)).setText(controller.getName());
@@ -335,7 +319,7 @@ public class InputControlsFragment extends Fragment {
                 ((TextView)itemView.findViewById(R.id.TVSubtitle)).setText(controllerBindingCount+" "+bindingsText);
 
                 ImageView imageView = itemView.findViewById(R.id.ImageView);
-                int tintColor = controller.isConnected() ? ContextCompat.getColor(context, R.color.colorAccent) : 0xffe57373;
+                int tintColor = AppUtils.getThemeColor(context, controller.isConnected() ? R.attr.colorAccent : R.attr.colorError);
                 ImageViewCompat.setImageTintList(imageView, ColorStateList.valueOf(tintColor));
 
                 if (controllerBindingCount > 0) {

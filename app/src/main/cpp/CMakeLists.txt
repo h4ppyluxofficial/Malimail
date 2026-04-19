@@ -1,41 +1,8 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(Winlator)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function-declaration")
-
-# Убираем VK_USE_PLATFORM_XLIB_KHR — Xlib недоступен в Android NDK
-# Vortek должен использовать VK_USE_PLATFORM_ANDROID_KHR
-add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR)
-
-add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../Vortek
-                 ${CMAKE_BINARY_DIR}/Vortek)
-
-add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../gladio
-                 ${CMAKE_BINARY_DIR}/gladio)
-
-add_subdirectory(proot)
+add_subdirectory(winlator)
+add_subdirectory(vortekrenderer)
 add_subdirectory(virglrenderer)
 add_subdirectory(midihandler)
-
-add_library(winlator SHARED
-            winlator/drawable.c
-            winlator/gpu_image.c
-            winlator/sysvshared_memory.c
-            winlator/xconnector_epoll.c
-            winlator/alsa_client.c)
-
-target_include_directories(winlator PRIVATE
-    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
-    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android)
-
-target_link_libraries(winlator
-                      vulkan_vortek
-                      GL
-                      log
-                      android
-                      jnigraphics
-                      aaudio
-                      EGL
-                      GLESv2
-                      GLESv3)
+add_subdirectory(libadrenotools)
+add_subdirectory(gladiorenderer)

@@ -14,19 +14,24 @@ public class EnvVars implements Iterable<String> {
         putAll(values);
     }
 
-    public void put(String name, Object value) {
+    public EnvVars put(String name, Object value) {
         data.put(name, String.valueOf(value));
+        return this;
+    }
+
+    public void putAll(String[] items) {
+        if (items == null) return;
+        for (String item : items) {
+            int index = item.indexOf("=");
+            String name = item.substring(0, index);
+            String value = item.substring(index+1);
+            data.put(name, value);
+        }
     }
 
     public void putAll(String values) {
         if (values == null || values.isEmpty()) return;
-        String[] parts = values.split(" ");
-        for (String part : parts) {
-            int index = part.indexOf("=");
-            String name = part.substring(0, index);
-            String value = part.substring(index+1);
-            data.put(name, value);
-        }
+        putAll(values.split(" "));
     }
 
     public void putAll(EnvVars envVars) {

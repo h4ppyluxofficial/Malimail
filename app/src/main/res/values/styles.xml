@@ -297,6 +297,4 @@
         <item name="android:background">@drawable/right_side_button</item>
         <item name="android:padding">6dp</item>
     </style>
-<style name="AppTheme" parent="AppThemeDark"/>
-    <style name="AppThemeFullscreen" parent="AppThemeFullscreenDark"/>
 </resources>

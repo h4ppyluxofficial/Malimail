@@ -19,18 +19,20 @@ import com.winlator.winhandler.WinHandler;
 import com.winlator.xserver.Pointer;
 import com.winlator.xserver.XServer;
 
-public class TouchpadView extends View {
+public class TouchpadView extends View implements View.OnCapturedPointerListener {
     private static final byte MAX_FINGERS = 4;
     private static final short MAX_TWO_FINGERS_SCROLL_DISTANCE = 350;
     public static final byte MAX_TAP_TRAVEL_DISTANCE = 10;
     public static final short MAX_TAP_MILLISECONDS = 200;
-    public static final float CURSOR_ACCELERATION = 1.25f;
+    public static final float CURSOR_ACCELERATION = 1.5f;
     public static final byte CURSOR_ACCELERATION_THRESHOLD = 6;
     private final Finger[] fingers = new Finger[MAX_FINGERS];
     private byte numFingers = 0;
     private float sensitivity = 1.0f;
+    private Finger mouseMoveFinger = null;
     private boolean pointerButtonLeftEnabled = true;
     private boolean pointerButtonRightEnabled = true;
+    private boolean moveCursorToTouchpoint = false;
     private Finger fingerPointerButtonLeft;
     private Finger fingerPointerButtonRight;
     private float scrollAccumY = 0;
@@ -39,15 +41,30 @@ public class TouchpadView extends View {
     private Runnable fourFingersTapCallback;
     private final float[] xform = XForm.getInstance();
 
-    public TouchpadView(Context context, XServer xServer) {
+    public TouchpadView(Context context, XServer xServer, boolean capturePointerOnExternalMouse) {
         super(context);
         this.xServer = xServer;
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        setBackground(createTransparentBg());
+        setBackground(createTransparentBackground());
         setClickable(true);
         setFocusable(true);
         setFocusableInTouchMode(false);
         updateXform(AppUtils.getScreenWidth(), AppUtils.getScreenHeight(), xServer.screenInfo.width, xServer.screenInfo.height);
+
+        if (capturePointerOnExternalMouse) {
+            setOnCapturedPointerListener(this);
+            setOnClickListener(view -> requestPointerCapture());
+        }
+    }
+
+    private static StateListDrawable createTransparentBackground() {
+        StateListDrawable stateListDrawable = new StateListDrawable();
+        ColorDrawable focusedDrawable = new ColorDrawable(Color.TRANSPARENT);
+        ColorDrawable defaultDrawable = new ColorDrawable(Color.TRANSPARENT);
+
+        stateListDrawable.addState(new int[]{android.R.attr.state_focused}, focusedDrawable);
+        stateListDrawable.addState(new int[0], defaultDrawable);
+        return stateListDrawable;
     }
 
     @Override
@@ -94,13 +111,17 @@ public class TouchpadView extends View {
 
         private int deltaX() {
             float dx = (x - lastX) * sensitivity;
-            if (Math.abs(dx) > CURSOR_ACCELERATION_THRESHOLD) dx *= CURSOR_ACCELERATION;
+            if (Math.abs(dx) > CURSOR_ACCELERATION_THRESHOLD) {
+                dx *= CURSOR_ACCELERATION;
+            }
             return Mathf.roundPoint(dx);
         }
 
         private int deltaY() {
             float dy = (y - lastY) * sensitivity;
-            if (Math.abs(dy) > CURSOR_ACCELERATION_THRESHOLD) dy *= CURSOR_ACCELERATION;
+            if (Math.abs(dy) > CURSOR_ACCELERATION_THRESHOLD) {
+                dy *= CURSOR_ACCELERATION;
+            }
             return Mathf.roundPoint(dy);
         }
 
@@ -132,7 +153,7 @@ public class TouchpadView extends View {
             case MotionEvent.ACTION_MOVE:
                 if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
                     float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
-                    xServer.injectPointerMove((int)transformedPoint[0], (int)transformedPoint[1]);
+                    if (isEnabled()) xServer.injectPointerMove((int)transformedPoint[0], (int)transformedPoint[1]);
                 }
                 else {
                     for (byte i = 0; i < MAX_FINGERS; i++) {
@@ -172,7 +193,10 @@ public class TouchpadView extends View {
     private void handleFingerUp(Finger finger1) {
         switch (numFingers) {
             case 1:
-                if (finger1.isTap()) pressPointerButtonLeft(finger1);
+                if (finger1.isTap()) {
+                    if (moveCursorToTouchpoint) xServer.injectPointerMove(finger1.x, finger1.y);
+                    pressPointerButtonLeft(finger1);
+                }
                 break;
             case 2:
                 Finger finger2 = findSecondFinger(finger1);
@@ -193,6 +217,7 @@ public class TouchpadView extends View {
     }
 
     private void handleFingerMove(Finger finger1) {
+        if (!isEnabled()) return;
         boolean skipPointerMove = false;
 
         Finger finger2 = numFingers == 2 ? findSecondFinger(finger1) : null;
@@ -223,14 +248,37 @@ public class TouchpadView extends View {
         }
 
         if (!scrolling && numFingers <= 2 && !skipPointerMove) {
-            int dx = finger1.deltaX();
-            int dy = finger1.deltaY();
-
-            if (xServer.isRelativeMouseMovement()) {
-                WinHandler winHandler = xServer.getWinHandler();
-                winHandler.mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+            if (moveCursorToTouchpoint && numFingers == 1) {
+                xServer.injectPointerMove(finger1.x, finger1.y);
             }
-            else xServer.injectPointerMoveDelta(dx, dy);
+            else {
+                int dx = finger1.deltaX();
+                int dy = finger1.deltaY();
+
+                WinHandler winHandler = xServer.getWinHandler();
+                if (xServer.isRelativeMouseMovement()) {
+                    winHandler.mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+                }
+                else xServer.injectPointerMoveDelta(dx, dy);
+            }
+        }
+    }
+
+    public void mouseMove(float x, float y, int action) {
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                mouseMoveFinger = new Finger(x, y);
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (mouseMoveFinger != null) {
+                    mouseMoveFinger.update(x, y);
+                    handleFingerMove(mouseMoveFinger);
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mouseMoveFinger = null;
+                break;
         }
     }
 
@@ -242,21 +290,21 @@ public class TouchpadView extends View {
     }
 
     private void pressPointerButtonLeft(Finger finger) {
-        if (pointerButtonLeftEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
+        if (isEnabled() && pointerButtonLeftEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
             xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
             fingerPointerButtonLeft = finger;
         }
     }
 
     private void pressPointerButtonRight(Finger finger) {
-        if (pointerButtonRightEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
+        if (isEnabled() && pointerButtonRightEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
             xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
             fingerPointerButtonRight = finger;
         }
     }
 
     private void releasePointerButtonLeft(final Finger finger) {
-        if (pointerButtonLeftEnabled && finger == fingerPointerButtonLeft && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
+        if (isEnabled() && pointerButtonLeftEnabled && finger == fingerPointerButtonLeft && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
             postDelayed(() -> {
                 xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
                 fingerPointerButtonLeft = null;
@@ -265,7 +313,7 @@ public class TouchpadView extends View {
     }
 
     private void releasePointerButtonRight(final Finger finger) {
-        if (pointerButtonRightEnabled && finger == fingerPointerButtonRight && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
+        if (isEnabled() && pointerButtonRightEnabled && finger == fingerPointerButtonRight && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
             postDelayed(() -> {
                 xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
                 fingerPointerButtonRight = null;
@@ -297,9 +345,17 @@ public class TouchpadView extends View {
         this.fourFingersTapCallback = fourFingersTapCallback;
     }
 
+    public boolean isMoveCursorToTouchpoint() {
+        return moveCursorToTouchpoint;
+    }
+
+    public void setMoveCursorToTouchpoint(boolean moveCursorToTouchpoint) {
+        this.moveCursorToTouchpoint = moveCursorToTouchpoint;
+    }
+
     public boolean onExternalMouseEvent(MotionEvent event) {
         boolean handled = false;
-        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+        if (isEnabled() && event.isFromSource(InputDevice.SOURCE_MOUSE)) {
             int actionButton = event.getActionButton();
             switch (event.getAction()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
@@ -358,15 +414,21 @@ public class TouchpadView extends View {
         return result;
     }
 
-    private StateListDrawable createTransparentBg() {
-        StateListDrawable stateListDrawable = new StateListDrawable();
+    @Override
+    public boolean onCapturedPointer(View view, MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+            float dx = event.getX() * sensitivity;
+            if (Math.abs(dx) > CURSOR_ACCELERATION_THRESHOLD) dx *= CURSOR_ACCELERATION;
 
-        ColorDrawable focusedDrawable = new ColorDrawable(Color.TRANSPARENT);
-        ColorDrawable defaultDrawable = new ColorDrawable(Color.TRANSPARENT);
+            float dy = event.getY() * sensitivity;
+            if (Math.abs(dy) > CURSOR_ACCELERATION_THRESHOLD) dy *= CURSOR_ACCELERATION;
 
-        stateListDrawable.addState(new int[]{android.R.attr.state_focused}, focusedDrawable);
-        stateListDrawable.addState(new int[]{}, defaultDrawable);
-
-        return stateListDrawable;
+            xServer.injectPointerMoveDelta(Mathf.roundPoint(dx), Mathf.roundPoint(dy));
+            return true;
+        }
+        else {
+            event.setSource(event.getSource() | InputDevice.SOURCE_MOUSE);
+            return onExternalMouseEvent(event);
+        }
     }
 }

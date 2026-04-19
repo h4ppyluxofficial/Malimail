@@ -1,37 +1,47 @@
 package com.winlator.renderer.material;
 
 public class CursorMaterial extends ShaderMaterial {
-    public CursorMaterial() {
-        setUniformNames("xform", "viewSize", "texture");
+    public final Uniforms uniforms = new Uniforms();
+
+    public static class Uniforms {
+        public final Uniform xform = new Uniform("xform");
+        public final Uniform viewSize = new Uniform("viewSize");
+        public final Uniform texture = new Uniform("texture");
+        public final Uniform backColor = new Uniform("backColor");
+        public final Uniform foreColor = new Uniform("foreColor");
     }
 
     @Override
     protected String getVertexShader() {
-        return
-            "uniform float xform[6];\n" +
-            "uniform vec2 viewSize;\n" +
-            "attribute vec2 position;\n" +
-            "varying vec2 vUV;\n" +
+        return String.join("\n",
+            "uniform float xform[6];",
+            "uniform vec2 viewSize;",
+            "attribute vec2 position;",
+            "varying vec2 vUV;",
 
-            "void main() {\n" +
-                "vUV = position;\n" +
-                "vec2 transformedPos = applyXForm(position, xform);\n" +
-                "gl_Position = vec4(2.0 * transformedPos.x / viewSize.x - 1.0, 1.0 - 2.0 * transformedPos.y / viewSize.y, 0.0, 1.0);\n" +
+            "void main() {",
+                "vUV = position;",
+                "vec2 transformedPos = applyXForm(position, xform);",
+                "gl_Position = vec4(2.0 * transformedPos.x / viewSize.x - 1.0, 1.0 - 2.0 * transformedPos.y / viewSize.y, 0.0, 1.0);",
             "}"
-        ;
+        );
     }
 
     @Override
     protected String getFragmentShader() {
-        return
-            "precision mediump float;\n" +
+        return String.join("\n",
+            "precision mediump float;",
 
-            "uniform sampler2D texture;\n" +
-            "varying vec2 vUV;\n" +
+            "uniform sampler2D texture;",
+            "uniform vec3 backColor;",
+            "uniform vec3 foreColor;",
 
-            "void main() {\n" +
-                "gl_FragColor = texture2D(texture, vUV);\n" +
+            "varying vec2 vUV;",
+
+            "void main() {",
+                "vec4 texelColor = texture2D(texture, vUV);",
+                "gl_FragColor = vec4(mix(foreColor, backColor, texelColor.r), texelColor.a);",
             "}"
-        ;
+        );
     }
 }

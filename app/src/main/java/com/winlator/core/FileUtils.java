@@ -1,12 +1,15 @@
 package com.winlator.core;
 
+import android.app.Activity;
 import android.content.Context;
-import android.content.res.AssetFileDescriptor;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.StatFs;
 import android.system.ErrnoException;
 import android.system.Os;
+
+import androidx.core.content.FileProvider;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -25,8 +28,6 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Stack;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -140,6 +141,15 @@ public abstract class FileUtils {
         else return targetFile.length() == 0;
     }
 
+    public static boolean isAscendantOf(File srcFile, File dstFile) {
+        File parent = dstFile.getParentFile();
+        while (parent != null) {
+            if (parent.equals(srcFile)) return true;
+            parent = parent.getParentFile();
+        }
+        return false;
+    }
+
     public static boolean copy(File srcFile, File dstFile) {
         return copy(srcFile, dstFile, null);
     }
@@ -147,7 +157,7 @@ public abstract class FileUtils {
     public static boolean copy(File srcFile, File dstFile, Callback<File> callback) {
         if (isSymlink(srcFile)) return true;
         if (srcFile.isDirectory()) {
-            if (!dstFile.exists() && !dstFile.mkdirs()) return false;
+            if (isAscendantOf(srcFile, dstFile) || (!dstFile.exists() && !dstFile.mkdirs())) return false;
             if (callback != null) callback.call(dstFile);
 
             String[] filenames = srcFile.list();
@@ -208,11 +218,21 @@ public abstract class FileUtils {
     }
 
     public static ArrayList<String> readLines(File file) {
+        return readLines(file, false);
+    }
+
+    public static ArrayList<String> readLines(File file, boolean skipEmptyLines) {
         ArrayList<String> lines = new ArrayList<>();
         try (FileInputStream fis = new FileInputStream(file)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
             String line;
-            while ((line = reader.readLine()) != null) lines.add(line);
+            while ((line = reader.readLine()) != null) {
+                if (skipEmptyLines) {
+                    line = line.trim();
+                    if (line.isEmpty()) continue;
+                }
+                lines.add(line);
+            }
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -265,19 +285,37 @@ public abstract class FileUtils {
     }
 
     public static boolean contentEquals(File origin, File target) {
-        if (origin.length() != target.length()) return false;
+        if (origin.isDirectory() && target.isDirectory()) {
+            File[] originFiles = origin.listFiles();
+            File[] targetFiles = origin.listFiles();
 
-        try (InputStream inStream1 = new BufferedInputStream(new FileInputStream(origin));
-             InputStream inStream2 = new BufferedInputStream(new FileInputStream(target))) {
-            int data;
-            while ((data = inStream1.read()) != -1) {
-                if (data != inStream2.read()) return false;
+            if (originFiles != null && targetFiles != null) {
+                if (originFiles.length != targetFiles.length) return false;
+
+                for (int i = 0; i < originFiles.length; i++) {
+                    if (!contentEquals(originFiles[i], targetFiles[i])) return false;
+                }
+
+                return true;
             }
-            return true;
+            else return originFiles == null && targetFiles == null;
         }
-        catch (IOException e) {
-            return false;
+        else if (origin.isFile() && target.isFile()) {
+            if (origin.length() != target.length()) return false;
+
+            try (InputStream inStream1 = new BufferedInputStream(new FileInputStream(origin));
+                 InputStream inStream2 = new BufferedInputStream(new FileInputStream(target))) {
+                int data;
+                while ((data = inStream1.read()) != -1) {
+                    if (data != inStream2.read()) return false;
+                }
+                return true;
+            }
+            catch (IOException e) {
+                return false;
+            }
         }
+        else return false;
     }
 
     public static void getSizeAsync(File file, Callback<Long> callback) {
@@ -360,5 +398,23 @@ public abstract class FileUtils {
         catch (IOException e) {
             return "";
         }
+    }
+
+    public static String getExtension(String filename) {
+        if (filename == null || filename.isEmpty()) return "";
+        int dotIndex = filename.lastIndexOf(".");
+        return dotIndex != -1 ? filename.substring(dotIndex + 1) : "";
+    }
+
+    public static void openIntent(Activity activity, String path) {
+        Intent intent;
+        if (path.startsWith("file://")) {
+            File file = new File(Uri.decode(path.replace("file://", "")));
+            intent = new Intent(Intent.ACTION_VIEW, FileProvider.getUriForFile(activity, "com.winlator.FileProvider", file));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        }
+        else intent = new Intent(Intent.ACTION_VIEW, Uri.parse(path));
+        intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT | Intent.FLAG_ACTIVITY_NEW_TASK);
+        activity.startActivity(intent);
     }
 }

@@ -3,7 +3,6 @@ package com.winlator.xenvironment;
 import android.content.Context;
 
 import com.winlator.core.FileUtils;
-import com.winlator.xenvironment.components.GuestProgramLauncherComponent;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -11,20 +10,20 @@ import java.util.Iterator;
 
 public class XEnvironment implements Iterable<EnvironmentComponent> {
     private final Context context;
-    private final ImageFs imageFs;
+    private final RootFS rootFS;
     private final ArrayList<EnvironmentComponent> components = new ArrayList<>();
 
-    public XEnvironment(Context context, ImageFs imageFs) {
+    public XEnvironment(Context context, RootFS rootFS) {
         this.context = context;
-        this.imageFs = imageFs;
+        this.rootFS = rootFS;
     }
 
     public Context getContext() {
         return context;
     }
 
-    public ImageFs getImageFs() {
-        return imageFs;
+    public RootFS getRootFS() {
+        return rootFS;
     }
 
     public void addComponent(EnvironmentComponent environmentComponent) {
@@ -63,12 +62,10 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
     }
 
     public void onPause() {
-        GuestProgramLauncherComponent guestProgramLauncherComponent = getComponent(GuestProgramLauncherComponent.class);
-        if (guestProgramLauncherComponent != null) guestProgramLauncherComponent.suspendProcess();
+        for (EnvironmentComponent environmentComponent : this) environmentComponent.onPause();
     }
 
     public void onResume() {
-        GuestProgramLauncherComponent guestProgramLauncherComponent = getComponent(GuestProgramLauncherComponent.class);
-        if (guestProgramLauncherComponent != null) guestProgramLauncherComponent.resumeProcess();
+        for (EnvironmentComponent environmentComponent : this) environmentComponent.onResume();
     }
 }

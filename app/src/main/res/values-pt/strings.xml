@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Malimail</string>
+    <string name="app_name">Winlator</string>
     <string name="run">Executar</string>
     <string name="edit">Editar</string>
     <string name="remove">Remover</string>
@@ -243,7 +243,7 @@
     <string name="system_font">Fonte do Sistema</string>
     <string name="vulkan_version">Versão Vulkan</string>
     <string name="exposed_extensions">Extensões Expostas</string>
-    <string name="multiselection_combobox_display_text" formatted="false">%d of %d items</string>
+    <string name="multiselection_combobox_display_text">%d de %d itens</string>
     <string name="voltage">Tensão</string>
     <string name="current">Corrente</string>
     <string name="capacity">Capacidade</string>

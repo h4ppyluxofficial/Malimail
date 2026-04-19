@@ -51,7 +51,8 @@ public class StorageInfoDialog extends ContentDialog {
 
         File rootDir = container.getRootDir();
         final File driveCDir = new File(rootDir, ".wine/drive_c");
-        final File cacheDir = new File(rootDir, ".cache");
+        final File containerCacheDir = new File(rootDir, ".cache");
+        final File globalCacheDir = activity.getCacheDir();
         AtomicLong lastTime = new AtomicLong(System.currentTimeMillis());
 
         final Callback<Long> onAddSize = (size) -> {
@@ -69,14 +70,20 @@ public class StorageInfoDialog extends ContentDialog {
             onAddSize.call(size);
         });
 
-        FileUtils.getSizeAsync(cacheDir, (size) -> {
+        FileUtils.getSizeAsync(containerCacheDir, (size) -> {
+            cacheSize.addAndGet(size);
+            onAddSize.call(size);
+        });
+
+        FileUtils.getSizeAsync(globalCacheDir, (size) -> {
             cacheSize.addAndGet(size);
             onAddSize.call(size);
         });
 
         ((TextView)findViewById(R.id.BTCancel)).setText(R.string.clear_cache);
         setOnCancelCallback(() -> {
-            FileUtils.clear(cacheDir);
+            FileUtils.clear(containerCacheDir);
+            FileUtils.clear(globalCacheDir);
 
             container.putExtra("desktopTheme", null);
             container.saveData();
