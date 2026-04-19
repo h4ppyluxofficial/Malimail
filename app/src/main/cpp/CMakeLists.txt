@@ -22,6 +22,9 @@ add_library(winlator SHARED
             winlator/xconnector_epoll.c
             winlator/alsa_client.c)
 
+target_include_directories(winlator PRIVATE
+    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include)
+
 target_link_libraries(winlator
                       vulkan_vortek
                       GL
