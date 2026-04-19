@@ -53,11 +53,10 @@ jobs:
 
       - name: Fix gradle-wrapper.jar
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle-bin.zip
-          # Найти точный путь jar внутри архива и извлечь
-          JAR_PATH=$(unzip -l gradle-bin.zip | grep 'gradle-wrapper.jar' | awk '{print $4}')
-          echo "Found jar at: $JAR_PATH"
-          unzip -p gradle-bin.zip "$JAR_PATH" > gradle/wrapper/gradle-wrapper.jar
+          mkdir -p gradle/wrapper
+          # Скачиваем напрямую с Maven Central — там jar точно есть
+          curl -fsSL "https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/8.0.2/gradle-wrapper-8.0.2.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
           ls -lh gradle/wrapper/gradle-wrapper.jar
           chmod +x ./gradlew
 
