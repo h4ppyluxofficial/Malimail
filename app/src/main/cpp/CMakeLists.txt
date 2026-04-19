@@ -23,7 +23,8 @@ add_library(winlator SHARED
             winlator/alsa_client.c)
 
 target_include_directories(winlator PRIVATE
-    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include)
+    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
+    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android)
 
 target_link_libraries(winlator
                       vulkan_vortek
