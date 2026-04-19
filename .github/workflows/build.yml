@@ -53,12 +53,12 @@ jobs:
 
       - name: Fix gradle-wrapper.jar
         run: |
-          # Скачиваем дистрибутив и достаём правильный jar из него
           wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O gradle-bin.zip
-          unzip -p gradle-bin.zip gradle-8.0.2/lib/gradle-wrapper.jar > gradle/wrapper/gradle-wrapper.jar
-          # Проверяем что jar валидный (должен быть ~60КБ с Main-Class)
+          # Найти точный путь jar внутри архива и извлечь
+          JAR_PATH=$(unzip -l gradle-bin.zip | grep 'gradle-wrapper.jar' | awk '{print $4}')
+          echo "Found jar at: $JAR_PATH"
+          unzip -p gradle-bin.zip "$JAR_PATH" > gradle/wrapper/gradle-wrapper.jar
           ls -lh gradle/wrapper/gradle-wrapper.jar
-          unzip -p gradle/wrapper/gradle-wrapper.jar META-INF/MANIFEST.MF | head -5
           chmod +x ./gradlew
 
       - name: Clean Build
