@@ -14,57 +14,67 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
-          clean: true
 
-      - name: Remove OpenXR-SDK
+      - name: Fix submodules and OpenXR ghost
         run: |
-          git config --local submodule.recurse false
-          git rm -rf --cached .gitmodules 2>/dev/null || true
-          git rm -rf --cached app/src/main/cpp/OpenXR-SDK 2>/dev/null || true
-          rm -rf app/src/main/cpp/OpenXR-SDK
+          git config --global submodule.recurse false
+          rm -f .gitmodules || true
+          rm -rf .git/modules || true
+          git submodule deinit -f --all 2>/dev/null || true
+          rm -rf app/src/main/cpp/OpenXR-SDK || true
           mkdir -p app/src/main/cpp/OpenXR-SDK
-          echo "add_library(openxr_ghost STATIC EXCLUDE_FROM_ALL winlator/drawable.c)" \
-            > app/src/main/cpp/OpenXR-SDK/CMakeLists.txt
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Android SDK build-tools
+        run: |
+          export JAVA_OPTS="-Xmx2G"
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "cmake;3.22.1" "ndk;25.2.9519653" 2>/dev/null || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Setup NDK r25c
         id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
-
-      - name: Install CMake 3.22.1
-        run: |
-          sudo apt-get install -y cmake --only-upgrade || true
-          wget -q https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-linux-x86_64.sh
-          chmod +x cmake-3.22.1-linux-x86_64.sh
-          sudo ./cmake-3.22.1-linux-x86_64.sh --skip-license --prefix=/usr/local
-          cmake --version
+          add-to-path: true
 
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
+          echo "cmake.dir=$ANDROID_HOME/cmake/3.22.1" >> local.properties
 
-      - name: Fix Gradlew permissions
-        run: chmod +x ./gradlew
-
-      - name: Clean Build
-        run: ./gradlew clean --no-daemon
+      - name: Fix Gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
+          /tmp/gradle-dist/gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2 --project-dir .
+          chmod +x ./gradlew
 
       - name: Build Debug APK
         env:
           GRADLE_OPTS: >-
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
+            -Dorg.gradle.jvmargs=-Xmx4g
             -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=false
         run: |
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace -x test
+          ./gradlew :app:assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            -x test \
+            2>&1 | tee build_output.log || true
+          echo "=== ОШИБКИ ==="
+          grep -E "error:|Error:|FAILED|CMake|aapt2|Exception" build_output.log | head -60
 
       - name: Upload APK
         if: success()
@@ -73,3 +83,11 @@ jobs:
           name: MaliMail-APK
           path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_output.log
+          retention-days: 3
