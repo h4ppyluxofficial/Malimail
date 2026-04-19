@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.malimail.mediatek"
+    namespace "com.winlator"
 
     compileSdk 33
 
