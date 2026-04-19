@@ -54,10 +54,11 @@ jobs:
       - name: Fix gradle-wrapper.jar
         run: |
           mkdir -p gradle/wrapper
-          # Скачиваем напрямую с Maven Central — там jar точно есть
-          curl -fsSL "https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/8.0.2/gradle-wrapper-8.0.2.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar
-          ls -lh gradle/wrapper/gradle-wrapper.jar
+          # Качаем gradle, генерируем wrapper — это 100% рабочий способ
+          wget -q https://services.gradle.org/distributions/gradle-8.0.2-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
+          /tmp/gradle-dist/gradle-8.0.2/bin/gradle wrapper --gradle-version 8.0.2 --project-dir .
+          ls -lh gradle/wrapper/
           chmod +x ./gradlew
 
       - name: Clean Build
