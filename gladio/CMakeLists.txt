@@ -4,7 +4,7 @@ project(GLST C)
 message("Building ${PROJECT_NAME}")
 
 set(CMAKE_VERBOSE_MAKEFILE on)
-set(WARNS "-Wall -Wno-discarded-qualifiers -Wno-unused-function -Wimplicit-function-declaration -Werror=incompatible-pointer-types")
+set(WARNS "-Wall -Wno-ignored-qualifiers -Wno-unused-function -Wimplicit-function-declaration")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 ${WARNS} -DGL_GLEXT_PROTOTYPES")
 
 include_directories(include)

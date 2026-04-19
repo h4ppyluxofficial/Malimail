@@ -4,7 +4,10 @@ project(Winlator)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function-declaration")
 
-# Vortek и Gladio — обычные папки в корне проекта (не субмодули)
+# Убираем VK_USE_PLATFORM_XLIB_KHR — Xlib недоступен в Android NDK
+# Vortek должен использовать VK_USE_PLATFORM_ANDROID_KHR
+add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR)
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/../../../../Vortek
                  ${CMAKE_BINARY_DIR}/Vortek)
 
