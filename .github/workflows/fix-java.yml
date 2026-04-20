@@ -1,0 +1,64 @@
+name: Fix Java Switch Statements
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fix switch R.id to if-else
+        run: |
+          find app/src/main/java -name "*.java" | xargs grep -l "case R\.id\." | while read file; do
+            python3 - "$file" <<'EOF'
+import re, sys
+
+with open(sys.argv[1], 'r') as f:
+    content = f.read()
+
+# Replace switch(x) { case R.id.Y: ... } with if-else
+def replace_switch(match):
+    full = match.group(0)
+    var = match.group(1)
+    body = match.group(2)
+    
+    cases = re.split(r'case (R\.\w+\.\w+):', body)
+    if len(cases) < 2:
+        return full
+    
+    result = []
+    first = True
+    for i in range(1, len(cases), 2):
+        condition = cases[i]
+        if i+1 < len(cases):
+            code = cases[i+1].strip().rstrip('break;').strip()
+        else:
+            code = ''
+        prefix = 'if' if first else 'else if'
+        result.append(f'{prefix} ({var} == {condition}) {{{code}}}')
+        first = False
+    
+    return '\n'.join(result)
+
+content = re.sub(
+    r'switch\s*\(([^)]+)\)\s*\{([^}]*R\.id\.[^}]*)\}',
+    replace_switch,
+    content,
+    flags=re.DOTALL
+)
+
+with open(sys.argv[1], 'w') as f:
+    f.write(content)
+EOF
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add -A
+          git commit -m "Fix: replace switch R.id with if-else for AGP compatibility" || echo "Nothing to commit"
+          git push
