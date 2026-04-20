@@ -1,14 +1,10 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-Project(Winlator)
+project(Winlator)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function-declaration")
 
 include_directories(include)
-
-target_include_directories(winlator PRIVATE
-    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
-    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android)
 
 add_library(winlator SHARED
             src/drawable.c
@@ -21,6 +17,10 @@ add_library(winlator SHARED
             src/arrays.c
             src/ring_buffer.c
             src/wine_registry_editor.c)
+
+target_include_directories(winlator PRIVATE
+    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
+    ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android)
 
 target_link_libraries(winlator
                       log
