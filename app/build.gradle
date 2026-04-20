@@ -3,12 +3,12 @@ apply plugin: 'com.android.application'
 android {
     namespace "com.winlator"
 
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.malimail.mediatek"
         minSdk 26
-        targetSdk 33
+        targetSdk 34
         versionCode 16
         versionName "7.1"
     }
