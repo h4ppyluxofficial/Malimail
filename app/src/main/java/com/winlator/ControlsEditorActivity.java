@@ -1,24 +1,29 @@
 package com.winlator;
 
+import android.content.Context;
 import android.graphics.BitmapFactory;
+import android.graphics.PointF;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RadioGroup;
-import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.winlator.core.LocaleHelper;
 import com.winlator.inputcontrols.Binding;
 import com.winlator.inputcontrols.ControlElement;
 import com.winlator.inputcontrols.ControlsProfile;
@@ -29,6 +34,8 @@ import com.winlator.core.FileUtils;
 import com.winlator.core.UnitUtils;
 import com.winlator.widget.InputControlsView;
 import com.winlator.widget.NumberPicker;
+import com.winlator.widget.SeekBar;
+import com.winlator.winhandler.MIDIHandler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,9 +44,11 @@ import java.util.Arrays;
 public class ControlsEditorActivity extends AppCompatActivity implements View.OnClickListener {
     private InputControlsView inputControlsView;
     private ControlsProfile profile;
+    private View toolbox;
 
     @Override
     public void onCreate(Bundle bundle) {
+        AppUtils.setActivityTheme(this);
         super.onCreate(bundle);
         AppUtils.hideSystemUI(this);
         setContentView(R.layout.controls_editor_activity);
@@ -58,6 +67,49 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         container.findViewById(R.id.BTAddElement).setOnClickListener(this);
         container.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         container.findViewById(R.id.BTElementSettings).setOnClickListener(this);
+
+        toolbox = container.findViewById(R.id.Toolbox);
+
+        final PointF startPoint = new PointF();
+        final boolean[] isActionDown = {false};
+        container.findViewById(R.id.BTMove).setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    startPoint.x = event.getX();
+                    startPoint.y = event.getY();
+                    isActionDown[0] = true;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (isActionDown[0]) {
+                        float newX = toolbox.getX() + (event.getX() - startPoint.x);
+                        float newY = toolbox.getY() + (event.getY() - startPoint.y);
+                        moveToolbox(newX, newY);
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                    isActionDown[0] = false;
+                    break;
+            }
+            return true;
+        });
+    }
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(LocaleHelper.setSystemLocale(newBase));
+    }
+
+    private void moveToolbox(float x, float y) {
+        final int padding = (int)UnitUtils.dpToPx(8);
+        ViewGroup parent = (ViewGroup)toolbox.getParent();
+        int width = toolbox.getWidth();
+        int height = toolbox.getHeight();
+        int parentWidth = parent.getWidth();
+        int parentHeight = parent.getHeight();
+        x = Mathf.clamp(x, padding, parentWidth - padding - width);
+        y = Mathf.clamp(y, padding, parentHeight - padding - height);
+        toolbox.setX(x);
+        toolbox.setY(y);
     }
 
     @Override
@@ -85,22 +137,35 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
     private void showControlElementSettings(View anchorView) {
         final ControlElement element = inputControlsView.getSelectedElement();
-        View view = LayoutInflater.from(this).inflate(R.layout.control_element_settings, null);
+        final View view = LayoutInflater.from(this).inflate(R.layout.control_element_settings, null);
 
         final Runnable updateLayout = () -> {
             ControlElement.Type type = element.getType();
             view.findViewById(R.id.LLShape).setVisibility(View.GONE);
             view.findViewById(R.id.CBToggleSwitch).setVisibility(View.GONE);
+            view.findViewById(R.id.CBMouseMoveMode).setVisibility(View.GONE);
             view.findViewById(R.id.LLCustomTextIcon).setVisibility(View.GONE);
             view.findViewById(R.id.LLRangeOptions).setVisibility(View.GONE);
+            view.findViewById(R.id.LLMIDIKeyOptions).setVisibility(View.GONE);
+            view.findViewById(R.id.LLRadialMenuOptions).setVisibility(View.GONE);
 
-            if (type == ControlElement.Type.BUTTON) {
-                view.findViewById(R.id.LLShape).setVisibility(View.VISIBLE);
-                view.findViewById(R.id.CBToggleSwitch).setVisibility(View.VISIBLE);
-                view.findViewById(R.id.LLCustomTextIcon).setVisibility(View.VISIBLE);
-            }
-            else if (type == ControlElement.Type.RANGE_BUTTON) {
-                view.findViewById(R.id.LLRangeOptions).setVisibility(View.VISIBLE);
+            switch (type) {
+                case BUTTON:
+                    view.findViewById(R.id.LLShape).setVisibility(View.VISIBLE);
+                    view.findViewById(R.id.CBToggleSwitch).setVisibility(View.VISIBLE);
+                    view.findViewById(R.id.CBMouseMoveMode).setVisibility(View.VISIBLE);
+                    view.findViewById(R.id.LLCustomTextIcon).setVisibility(View.VISIBLE);
+                    break;
+                case RANGE_BUTTON:
+                    view.findViewById(R.id.LLRangeOptions).setVisibility(View.VISIBLE);
+                    break;
+                case MIDI_KEY:
+                    view.findViewById(R.id.LLMIDIKeyOptions).setVisibility(View.VISIBLE);
+                    break;
+                case RADIAL_MENU:
+                    ((NumberPicker)view.findViewById(R.id.NPBindings)).setValue(element.getBindingCount());
+                    view.findViewById(R.id.LLRadialMenuOptions).setVisibility(View.VISIBLE);
+                    break;
             }
 
             loadBindingSpinners(element, view);
@@ -109,6 +174,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         loadTypeSpinner(element, view.findViewById(R.id.SType), updateLayout);
         loadShapeSpinner(element, view.findViewById(R.id.SShape));
         loadRangeSpinner(element, view.findViewById(R.id.SRange));
+        loadNoteSpinner(element, view.findViewById(R.id.SNote));
 
         RadioGroup rgOrientation = view.findViewById(R.id.RGOrientation);
         rgOrientation.check(element.getOrientation() == 1 ? R.id.RBVertical : R.id.RBHorizontal);
@@ -126,33 +192,42 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             inputControlsView.invalidate();
         });
 
-        final TextView tvScale = view.findViewById(R.id.TVScale);
-        SeekBar sbScale = view.findViewById(R.id.SBScale);
-        sbScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvScale.setText(progress+"%");
-                if (fromUser) {
-                    progress = (int)Mathf.roundTo(progress, 5);
-                    seekBar.setProgress(progress);
-                    element.setScale(progress / 100.0f);
-                    profile.save();
-                    inputControlsView.invalidate();
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
+        NumberPicker npBindings = view.findViewById(R.id.NPBindings);
+        npBindings.setValue(element.getBindingCount());
+        npBindings.setOnValueChangeListener((numberPicker, value) -> {
+            element.setBindingCount(value);
+            loadBindingSpinners(element, view);
+            profile.save();
+            inputControlsView.invalidate();
         });
-        sbScale.setProgress((int)(element.getScale() * 100));
+
+        SeekBar sbScale = view.findViewById(R.id.SBScale);
+        sbScale.setOnValueChangeListener((seekBar, value) -> {
+            element.setScale(value / 100.0f);
+            profile.save();
+            inputControlsView.invalidate();
+        });
+        sbScale.setValue(element.getScale() * 100);
+
+        SeekBar sbOpacity = view.findViewById(R.id.SBOpacity);
+        sbOpacity.setOnValueChangeListener((seekBar, value) -> {
+            element.setOpacity(value / 100.0f);
+            profile.save();
+            inputControlsView.invalidate();
+        });
+        sbOpacity.setValue(element.getOpacity() * 100);
 
         CheckBox cbToggleSwitch = view.findViewById(R.id.CBToggleSwitch);
         cbToggleSwitch.setChecked(element.isToggleSwitch());
         cbToggleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             element.setToggleSwitch(isChecked);
+            profile.save();
+        });
+
+        CheckBox cbMouseMoveMode = view.findViewById(R.id.CBMouseMoveMode);
+        cbMouseMoveMode.setChecked(element.isMouseMoveMode());
+        cbMouseMoveMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            element.setMouseMoveMode(isChecked);
             profile.save();
         });
 
@@ -165,30 +240,35 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
         PopupWindow popupWindow = AppUtils.showPopupWindow(anchorView, view, 340, 0);
         popupWindow.setOnDismissListener(() -> {
-            String text = etCustomText.getText().toString().trim();
             byte iconId = 0;
-            for (int i = 0; i < llIconList.getChildCount(); i++) {
-                View child = llIconList.getChildAt(i);
-                if (child.isSelected()) {
-                    iconId = (byte)child.getTag();
-                    break;
+            if (element.getType() == ControlElement.Type.BUTTON) {
+                for (int i = 0; i < llIconList.getChildCount(); i++) {
+                    View child = llIconList.getChildAt(i);
+                    if (child.isSelected()) {
+                        iconId = (byte)child.getTag();
+                        break;
+                    }
                 }
+
+                String text = etCustomText.getText().toString().trim();
+                element.setText(text);
             }
 
-            element.setText(text);
             element.setIconId(iconId);
             profile.save();
             inputControlsView.invalidate();
         });
     }
 
-    private void loadTypeSpinner(final ControlElement element, Spinner spinner, Runnable callback) {
+    private void loadTypeSpinner(final ControlElement element, Spinner spinner, final Runnable callback) {
         spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, ControlElement.Type.names()));
         spinner.setSelection(element.getType().ordinal(), false);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                element.setType(ControlElement.Type.values()[position]);
+                ControlElement.Type newType = ControlElement.Type.values()[position];
+                if (newType == element.getType()) return;
+                element.setType(newType);
                 profile.save();
                 callback.run();
                 inputControlsView.invalidate();
@@ -221,7 +301,12 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
         ControlElement.Type type = element.getType();
         if (type == ControlElement.Type.BUTTON) {
-            loadBindingSpinner(element, container, 0, R.string.binding);
+            byte first = element.getFirstBindingIndex();
+            for (byte i = 0, count = 0; i < element.getBindingCount(); i++) {
+                if (i <= first || element.getBindingAt(i) != Binding.NONE) {
+                    loadBindingSpinner(element, container, i, count++ == 0 ? R.string.binding : 0);
+                }
+            }
         }
         else if (type == ControlElement.Type.D_PAD || type == ControlElement.Type.STICK || type == ControlElement.Type.TRACKPAD) {
             loadBindingSpinner(element, container, 0, R.string.binding_up);
@@ -229,13 +314,33 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             loadBindingSpinner(element, container, 2, R.string.binding_down);
             loadBindingSpinner(element, container, 3, R.string.binding_left);
         }
+        else if (type == ControlElement.Type.RADIAL_MENU) {
+            for (byte i = 0; i < element.getBindingCount(); i++) loadBindingSpinner(element, container, i, 0);
+        }
     }
 
-    private void loadBindingSpinner(final ControlElement element, LinearLayout container, final int index, int titleResId) {
+    private void loadBindingSpinner(final ControlElement element, final LinearLayout container, final int index, int titleResId) {
         View view = LayoutInflater.from(this).inflate(R.layout.binding_field, container, false);
-        ((TextView)view.findViewById(R.id.TVTitle)).setText(titleResId);
+
+        LinearLayout titleBar = view.findViewById(R.id.LLTitleBar);
+        if (titleResId > 0) {
+            titleBar.setVisibility(View.VISIBLE);
+            ((TextView)view.findViewById(R.id.TVTitle)).setText(titleResId);
+        }
+        else titleBar.setVisibility(View.GONE);
+
         final Spinner sBindingType = view.findViewById(R.id.SBindingType);
         final Spinner sBinding = view.findViewById(R.id.SBinding);
+
+        ControlElement.Type type = element.getType();
+        if (type == ControlElement.Type.BUTTON || type == ControlElement.Type.RADIAL_MENU) {
+            ImageButton addButton = view.findViewById(R.id.BTAdd);
+            addButton.setVisibility(View.VISIBLE);
+            addButton.setOnClickListener((v) -> {
+                int nextIndex = container.getChildCount();
+                if (nextIndex < element.getBindingCount()) loadBindingSpinner(element, container, nextIndex, 0);
+            });
+        }
 
         Runnable update = () -> {
             String[] bindingEntries = null;
@@ -314,6 +419,23 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 element.setRange(ControlElement.Range.values()[position]);
+                profile.save();
+                inputControlsView.invalidate();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
+    private void loadNoteSpinner(final ControlElement element, Spinner spinner) {
+        String[] notes = MIDIHandler.getNotes();
+        spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, notes));
+        AppUtils.setSpinnerSelectionFromValue(spinner, element.getText());
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                element.setText(notes[position]);
                 profile.save();
                 inputControlsView.invalidate();
             }

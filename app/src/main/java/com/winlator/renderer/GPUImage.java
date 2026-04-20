@@ -20,11 +20,15 @@ public class GPUImage extends Texture {
     }
 
     public GPUImage(short width, short height) {
-        this(width, height, true);
+        this(width, height, true, true);
     }
 
     public GPUImage(short width, short height, boolean cpuAccess) {
-        hardwareBufferPtr = createHardwareBuffer(width, height, cpuAccess);
+        this(width, height, cpuAccess, true);
+    }
+
+    public GPUImage(short width, short height, boolean cpuAccess, boolean useHALPixelFormatBGRA8888) {
+        hardwareBufferPtr = createHardwareBuffer(width, height, cpuAccess, useHALPixelFormatBGRA8888);
         if (cpuAccess && hardwareBufferPtr != 0) {
             virtualData = lockHardwareBuffer(hardwareBufferPtr);
             locked = true;
@@ -92,7 +96,7 @@ public class GPUImage extends Texture {
         gpuImage.destroy();
     }
 
-    private native long createHardwareBuffer(short width, short height, boolean cpuAccess);
+    private native long createHardwareBuffer(short width, short height, boolean cpuAccess, boolean useHALPixelFormatBGRA8888);
 
     private native void destroyHardwareBuffer(long hardwareBufferPtr, boolean locked);
 

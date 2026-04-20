@@ -6,35 +6,37 @@ import android.os.Process;
 
 import androidx.preference.PreferenceManager;
 
-import com.winlator.box86_64.Box86_64Preset;
-import com.winlator.box86_64.Box86_64PresetManager;
+import com.winlator.box64.Box64Preset;
+import com.winlator.box64.Box64PresetManager;
 import com.winlator.core.Callback;
 import com.winlator.core.DefaultVersion;
 import com.winlator.core.EnvVars;
+import com.winlator.core.FileUtils;
+import com.winlator.core.GeneralComponents;
+import com.winlator.core.LocaleHelper;
 import com.winlator.core.ProcessHelper;
-import com.winlator.core.TarCompressorUtils;
+import com.winlator.widget.LogView;
 import com.winlator.xconnector.UnixSocketConfig;
 import com.winlator.xenvironment.EnvironmentComponent;
-import com.winlator.xenvironment.ImageFs;
+import com.winlator.xenvironment.RootFS;
 
 import java.io.File;
+import java.util.List;
 
 public class GuestProgramLauncherComponent extends EnvironmentComponent {
     private String guestExecutable;
     private static int pid = -1;
-    private String[] bindingPaths;
     private EnvVars envVars;
-    private String box86Preset = Box86_64Preset.COMPATIBILITY;
-    private String box64Preset = Box86_64Preset.COMPATIBILITY;
+    private String box64Preset = Box64Preset.CONSERVATIVE;
     private Callback<Integer> terminationCallback;
     private static final Object lock = new Object();
-    private boolean wow64Mode = true;
 
     @Override
     public void start() {
         synchronized (lock) {
             stop();
-            extractBox86_64Files();
+            extractBox64File();
+            copyDefaultBox64RCFile();
             pid = execGuestProgram();
         }
     }
@@ -65,36 +67,12 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         this.guestExecutable = guestExecutable;
     }
 
-    public boolean isWoW64Mode() {
-        return wow64Mode;
-    }
-
-    public void setWoW64Mode(boolean wow64Mode) {
-        this.wow64Mode = wow64Mode;
-    }
-
-    public String[] getBindingPaths() {
-        return bindingPaths;
-    }
-
-    public void setBindingPaths(String[] bindingPaths) {
-        this.bindingPaths = bindingPaths;
-    }
-
     public EnvVars getEnvVars() {
         return envVars;
     }
 
     public void setEnvVars(EnvVars envVars) {
         this.envVars = envVars;
-    }
-
-    public String getBox86Preset() {
-        return box86Preset;
-    }
-
-    public void setBox86Preset(String box86Preset) {
-        this.box86Preset = box86Preset;
     }
 
     public String getBox64Preset() {
@@ -106,60 +84,30 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
     }
 
     private int execGuestProgram() {
-        Context context = environment.getContext();
-        ImageFs imageFs = environment.getImageFs();
-        File rootDir = imageFs.getRootDir();
-        File tmpDir = environment.getTmpDir();
-        String nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean enableBox86_64Logs = preferences.getBoolean("enable_box86_64_logs", false);
+        RootFS rootFS = environment.getRootFS();
+        File rootDir = rootFS.getRootDir();
 
         EnvVars envVars = new EnvVars();
-        if (!wow64Mode) addBox86EnvVars(envVars, enableBox86_64Logs);
-        addBox64EnvVars(envVars, enableBox86_64Logs);
-        envVars.put("HOME", ImageFs.HOME_PATH);
-        envVars.put("USER", ImageFs.USER);
-        envVars.put("TMPDIR", "/tmp");
-        envVars.put("LC_ALL", "en_US.utf8");
-        envVars.put("DISPLAY", ":0");
-        envVars.put("PATH", imageFs.getWinePath()+"/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-        envVars.put("LD_LIBRARY_PATH", "/usr/lib/aarch64-linux-gnu:/usr/lib/arm-linux-gnueabihf");
-        envVars.put("ANDROID_SYSVSHM_SERVER", UnixSocketConfig.SYSVSHM_SERVER_PATH);
+        addBox64EnvVars(envVars);
+        LocaleHelper.setEnvVars(envVars);
 
-        if ((new File(imageFs.getLib64Dir(), "libandroid-sysvshm.so")).exists() ||
-            (new File(imageFs.getLib32Dir(), "libandroid-sysvshm.so")).exists()) envVars.put("LD_PRELOAD", "libandroid-sysvshm.so");
+        envVars.put("HOME", rootDir+RootFS.HOME_PATH);
+        envVars.put("USER", RootFS.USER);
+        envVars.put("TMPDIR", rootDir+"/tmp");
+        envVars.put("DISPLAY", ":0");
+        envVars.put("PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin");
+        envVars.put("LD_LIBRARY_PATH", rootFS.getLibDir().getPath());
+        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");
+        envVars.put("ANDROID_SYSVSHM_SERVER", rootDir+UnixSocketConfig.SYSVSHM_SERVER_PATH);
+
         if (this.envVars != null) envVars.putAll(this.envVars);
 
-        boolean bindSHM = envVars.get("WINEESYNC").equals("1");
+        File shmDir = new File(rootDir, "/tmp/shm");
+        if (!shmDir.isDirectory()) shmDir.mkdirs();
 
-        String command = nativeLibraryDir+"/libproot.so";
-        command += " --kill-on-exit";
-        command += " --rootfs="+rootDir;
-        command += " --cwd="+ImageFs.HOME_PATH;
-        command += " --bind=/dev";
+        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;
 
-        if (bindSHM) {
-            File shmDir = new File(rootDir, "/tmp/shm");
-            shmDir.mkdirs();
-            command += " --bind="+shmDir.getAbsolutePath()+":/dev/shm";
-        }
-
-        command += " --bind=/proc";
-        command += " --bind=/sys";
-
-        if (bindingPaths != null) {
-            for (String path : bindingPaths) command += " --bind="+(new File(path)).getAbsolutePath();
-        }
-
-        command += " /usr/bin/env "+envVars.toEscapedString()+" box64 "+guestExecutable;
-
-        envVars.clear();
-        envVars.put("PROOT_TMP_DIR", tmpDir);
-        envVars.put("PROOT_LOADER", nativeLibraryDir+"/libproot-loader.so");
-        if (!wow64Mode) envVars.put("PROOT_LOADER_32", nativeLibraryDir+"/libproot-loader32.so");
-
-        return ProcessHelper.exec(command, envVars.toStringArray(), rootDir, (status) -> {
+        return ProcessHelper.exec(command, envVars, rootDir, (status) -> {
             synchronized (lock) {
                 pid = -1;
             }
@@ -167,73 +115,90 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         });
     }
 
-    private void extractBox86_64Files() {
-        ImageFs imageFs = environment.getImageFs();
+    private void extractBox64File() {
         Context context = environment.getContext();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        String box86Version = preferences.getString("box86_version", DefaultVersion.BOX86);
         String box64Version = preferences.getString("box64_version", DefaultVersion.BOX64);
-        String currentBox86Version = preferences.getString("current_box86_version", "");
         String currentBox64Version = preferences.getString("current_box64_version", "");
-        File rootDir = imageFs.getRootDir();
-
-        if (wow64Mode) {
-            File box86File = new File(rootDir, "/usr/local/bin/box86");
-            if (box86File.isFile()) {
-                box86File.delete();
-                preferences.edit().putString("current_box86_version", "").apply();
-            }
-        }
-        else if (!box86Version.equals(currentBox86Version)) {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "box86_64/box86-"+box86Version+".tzst", rootDir);
-            preferences.edit().putString("current_box86_version", box86Version).apply();
-        }
 
         if (!box64Version.equals(currentBox64Version)) {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "box86_64/box64-"+box64Version+".tzst", rootDir);
+            GeneralComponents.extractFile(GeneralComponents.Type.BOX64, context, box64Version, DefaultVersion.BOX64);
             preferences.edit().putString("current_box64_version", box64Version).apply();
         }
     }
 
-    private void addBox86EnvVars(EnvVars envVars, boolean enableLogs) {
-        envVars.put("BOX86_NOBANNER", ProcessHelper.PRINT_DEBUG && enableLogs ? "0" : "1");
-        envVars.put("BOX86_DYNAREC", "1");
-
-        if (enableLogs) {
-            envVars.put("BOX86_LOG", "1");
-            envVars.put("BOX86_DYNAREC_MISSING", "1");
-        }
-
-        envVars.putAll(Box86_64PresetManager.getEnvVars("box86", environment.getContext(), box86Preset));
-        envVars.put("BOX86_X11GLX", "1");
-        envVars.put("BOX86_NORCFILES", "1");
+    private void copyDefaultBox64RCFile() {
+        Context context = environment.getContext();
+        RootFS rootFS = environment.getRootFS();
+        FileUtils.copy(context, "box64/default.box64rc", new File(rootFS.getRootDir(), "/etc/config.box64rc"));
     }
 
-    private void addBox64EnvVars(EnvVars envVars, boolean enableLogs) {
-        envVars.put("BOX64_NOBANNER", ProcessHelper.PRINT_DEBUG && enableLogs ? "0" : "1");
-        envVars.put("BOX64_DYNAREC", "1");
-        if (wow64Mode) envVars.put("BOX64_MMAP32", "1");
-        envVars.put("BOX64_AVX", "1");
+    private void addBox64EnvVars(EnvVars envVars) {
+        Context context = environment.getContext();
+        RootFS rootFS = environment.getRootFS();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        int box64Logs = preferences.getInt("box64_logs", 0);
+        boolean saveToFile = preferences.getBoolean("save_logs_to_file", false);
 
-        if (enableLogs) {
+        envVars.put("BOX64_NOBANNER", box64Logs >= 1 ? "0" : "1");
+        envVars.put("BOX64_DYNAREC", "1");
+        envVars.put("BOX64_UNITYPLAYER", "0");
+
+        if (box64Logs >= 1) {
             envVars.put("BOX64_LOG", "1");
             envVars.put("BOX64_DYNAREC_MISSING", "1");
+
+            if (box64Logs == 2) {
+                envVars.put("BOX64_SHOWSEGV", "1");
+                envVars.put("BOX64_DLSYM_ERROR", "1");
+                envVars.put("BOX64_TRACE_FILE", "stderr");
+
+                if (saveToFile) {
+                    File parent = (new File(preferences.getString("log_file", LogView.getLogFile().getPath()))).getParentFile();
+                    if (parent != null && parent.isDirectory()) {
+                        File traceDir = new File(parent, "trace");
+                        if (!traceDir.isDirectory()) traceDir.mkdirs();
+                        FileUtils.clear(traceDir);
+
+                        envVars.put("BOX64_TRACE_FILE", traceDir+"/box64-%pid.txt");
+                    }
+                }
+            }
         }
 
-        envVars.putAll(Box86_64PresetManager.getEnvVars("box64", environment.getContext(), box64Preset));
-        envVars.put("BOX64_X11GLX", "1");
-        envVars.put("BOX64_NORCFILES", "1");
+        envVars.putAll(Box64PresetManager.getEnvVars(context, box64Preset));
+
+        File box64RCFile = new File(rootFS.getRootDir(), "/etc/config.box64rc");
+        envVars.put("BOX64_RCFILE", box64RCFile.getPath());
     }
 
-    public void suspendProcess() {
+    @Override
+    public void onPause() {
         synchronized (lock) {
-            if (pid != -1) ProcessHelper.suspendProcess(pid);
+            if (pid != -1) {
+                List<ProcessHelper.PStat> processes = ProcessHelper.getChildProcesses();
+                for (int i = processes.size()-1; i >= 0; i--) {
+                    ProcessHelper.PStat process = processes.get(i);
+                    if (process.guestProcess && process.state != ProcessHelper.PState.STOPPED) {
+                        ProcessHelper.suspendProcess(process.pid);
+                    }
+                }
+            }
         }
     }
 
-    public void resumeProcess() {
+    @Override
+    public void onResume() {
         synchronized (lock) {
-            if (pid != -1) ProcessHelper.resumeProcess(pid);
+            if (pid != -1) {
+                List<ProcessHelper.PStat> processes = ProcessHelper.getChildProcesses();
+                for (int i = 0; i < processes.size(); i++) {
+                    ProcessHelper.PStat process = processes.get(i);
+                    if (process.guestProcess && process.state == ProcessHelper.PState.STOPPED) {
+                        ProcessHelper.resumeProcess(process.pid);
+                    }
+                }
+            }
         }
     }
 }

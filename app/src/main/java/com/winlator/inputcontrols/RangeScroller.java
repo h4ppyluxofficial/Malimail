@@ -38,6 +38,14 @@ public class RangeScroller {
         return scrollOffset;
     }
 
+    public Binding getBinding() {
+        return binding;
+    }
+
+    public boolean isScrolling() {
+        return scrolling;
+    }
+
     public byte[] getRangeIndex() {
         ControlElement.Range range = element.getRange();
         byte from = (byte)Math.floor((scrollOffset / getElementSize()) % range.max);
@@ -115,7 +123,6 @@ public class RangeScroller {
                 if (scrollOffset < 0) scrollOffset = scrollSize + scrollOffset;
 
                 lastPosition = position;
-                inputControlsView.invalidate();
             }
         }
     }

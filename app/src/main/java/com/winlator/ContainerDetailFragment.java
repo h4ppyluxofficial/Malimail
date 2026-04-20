@@ -5,17 +5,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.SubMenu;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
+import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -23,31 +27,42 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.preference.PreferenceManager;
 
-import com.winlator.box86_64.Box86_64Preset;
-import com.winlator.box86_64.Box86_64PresetManager;
+import com.winlator.box64.Box64Preset;
+import com.winlator.box64.Box64PresetManager;
 import com.winlator.container.Container;
 import com.winlator.container.ContainerManager;
+import com.winlator.container.Drive;
+import com.winlator.container.GraphicsDrivers;
 import com.winlator.contentdialog.AddEnvVarDialog;
-import com.winlator.contentdialog.DXVKConfigDialog;
+import com.winlator.contentdialog.AudioDriverConfigDialog;
+import com.winlator.contentdialog.ContentDialog;
+import com.winlator.contentdialog.VortekConfigDialog;
 import com.winlator.core.AppUtils;
 import com.winlator.core.Callback;
+import com.winlator.container.DXWrapperPicker;
 import com.winlator.core.EnvVars;
 import com.winlator.core.FileUtils;
+import com.winlator.container.GraphicsDriverPicker;
 import com.winlator.core.KeyValueSet;
 import com.winlator.core.PreloaderDialog;
 import com.winlator.core.StringUtils;
 import com.winlator.core.WineInfo;
+import com.winlator.core.WineInstaller;
 import com.winlator.core.WineRegistryEditor;
 import com.winlator.core.WineThemeManager;
 import com.winlator.core.WineUtils;
 import com.winlator.widget.CPUListView;
 import com.winlator.widget.ColorPickerView;
 import com.winlator.widget.EnvVarsView;
+import com.winlator.widget.FrameRating;
 import com.winlator.widget.ImagePickerView;
+import com.winlator.widget.SeekBar;
+import com.winlator.win32.MSLogFont;
+import com.winlator.win32.WinVersions;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -55,14 +70,12 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 public class ContainerDetailFragment extends Fragment {
     private ContainerManager manager;
     private final int containerId;
     private Container container;
     private PreloaderDialog preloaderDialog;
-    private JSONArray gpuCards;
     private Callback<String> openDirectoryCallback;
 
     public ContainerDetailFragment() {
@@ -78,11 +91,6 @@ public class ContainerDetailFragment extends Fragment {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(false);
         preloaderDialog = new PreloaderDialog(getActivity());
-
-        try {
-            gpuCards = new JSONArray(FileUtils.readString(getContext(), "gpu_cards.json"));
-        }
-        catch (JSONException e) {}
     }
 
     @Override
@@ -122,42 +130,41 @@ public class ContainerDetailFragment extends Fragment {
         }
         else etName.setText(getString(R.string.container)+"-"+manager.getNextContainerId());
 
-        final ArrayList<WineInfo> wineInfos = WineUtils.getInstalledWineInfos(context);
+        final ArrayList<WineInfo> wineInfos = WineInstaller.getInstalledWineInfos(context);
         final Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         if (wineInfos.size() > 1) loadWineVersionSpinner(view, sWineVersion, wineInfos);
 
         loadScreenSizeSpinner(view, isEditMode() ? container.getScreenSize() : Container.DEFAULT_SCREEN_SIZE);
 
-        final Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
-        final Spinner sDXWrapper = view.findViewById(R.id.SDXWrapper);
+        final String oldGraphicsDriverConfig = isEditMode() ? container.getGraphicsDriverConfig() : "";
+        String selectedGraphicsDriver = isEditMode() ? container.getGraphicsDriver() : GraphicsDrivers.getDefaultDriver(context);
+        GraphicsDriverPicker graphicsDriverPicker = new GraphicsDriverPicker(view.findViewById(R.id.LLGraphicsDriver), selectedGraphicsDriver, oldGraphicsDriverConfig);
 
-        final View vDXWrapperConfig = view.findViewById(R.id.BTDXWrapperConfig);
-        vDXWrapperConfig.setTag(isEditMode() ? container.getDXWrapperConfig() : "");
-
-        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
-        loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, isEditMode() ? container.getGraphicsDriver() : Container.DEFAULT_GRAPHICS_DRIVER,
-            isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER);
+        String oldDXWrapperConfig = isEditMode() ? container.getDXWrapperConfig() : "";
+        String selectedDXWrapper = isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER;
+        DXWrapperPicker dxwrapperPicker = new DXWrapperPicker(view.findViewById(R.id.LLDXWrapper), graphicsDriverPicker, selectedDXWrapper, oldDXWrapperConfig);
 
         view.findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
 
         Spinner sAudioDriver = view.findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, isEditMode() ? container.getAudioDriver() : Container.DEFAULT_AUDIO_DRIVER);
 
-        final CheckBox cbShowFPS = view.findViewById(R.id.CBShowFPS);
-        cbShowFPS.setChecked(isEditMode() && container.isShowFPS());
+        final View vAudioDriverConfig = view.findViewById(R.id.BTAudioDriverConfig);
+        vAudioDriverConfig.setTag(isEditMode() ? container.getAudioDriverConfig() : "");
+        vAudioDriverConfig.setOnClickListener((v) -> (new AudioDriverConfigDialog(v)).show());
 
-        final CheckBox cbWoW64Mode = view.findViewById(R.id.CBWoW64Mode);
-        cbWoW64Mode.setChecked(!isEditMode() || container.isWoW64Mode());
+        final Spinner sHUDMode = view.findViewById(R.id.SHUDMode);
+        sHUDMode.setSelection(isEditMode() ? container.getHUDMode() : FrameRating.Mode.DISABLED.ordinal());
 
         final Spinner sStartupSelection = view.findViewById(R.id.SStartupSelection);
-        byte previousStartupSelection = isEditMode() ? container.getStartupSelection() : -1;
-        sStartupSelection.setSelection(previousStartupSelection != -1 ? previousStartupSelection : Container.STARTUP_SELECTION_ESSENTIAL);
+        byte oldStartupSelection = isEditMode() ? container.getStartupSelection() : -1;
+        sStartupSelection.setSelection(oldStartupSelection != -1 ? oldStartupSelection : Container.STARTUP_SELECTION_ESSENTIAL);
 
-        final Spinner sBox86Preset = view.findViewById(R.id.SBox86Preset);
-        Box86_64PresetManager.loadSpinner("box86", sBox86Preset, isEditMode() ? container.getBox86Preset() : preferences.getString("box86_preset", Box86_64Preset.COMPATIBILITY));
+        final Spinner sWinVersion = view.findViewById(R.id.SWinVersion);
+        sWinVersion.setTag((byte)-1);
 
         final Spinner sBox64Preset = view.findViewById(R.id.SBox64Preset);
-        Box86_64PresetManager.loadSpinner("box64", sBox64Preset, isEditMode() ? container.getBox64Preset() : preferences.getString("box64_preset", Box86_64Preset.COMPATIBILITY));
+        Box64PresetManager.loadSpinner(sBox64Preset, isEditMode() ? container.getBox64Preset() : preferences.getString("box64_preset", Box64Preset.DEFAULT));
 
         final CPUListView cpuListView = view.findViewById(R.id.CPUListView);
         final CPUListView cpuListViewWoW64 = view.findViewById(R.id.CPUListViewWoW64);
@@ -170,26 +177,28 @@ public class ContainerDetailFragment extends Fragment {
         createWinComponentsTab(view, isEditMode() ? container.getWinComponents() : Container.DEFAULT_WINCOMPONENTS);
         createDrivesTab(view);
 
-        AppUtils.setupTabLayout(view, R.id.TabLayout, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced);
+        AppUtils.setupTabLayout(view, R.id.TabLayout, (tabResId) -> {
+            if (tabResId == R.id.LLTabAdvanced) if ((byte)sWinVersion.getTag() == -1) WinVersions.loadSpinner(container, sWinVersion);
+        }, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced);
 
         view.findViewById(R.id.BTConfirm).setOnClickListener((v) -> {
             try {
                 String name = etName.getText().toString();
                 String screenSize = getScreenSize(view);
                 String envVars = envVarsView.getEnvVars();
-                String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
-                String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
+                String graphicsDriver = graphicsDriverPicker.getGraphicsDriver();
+                String dxwrapper = dxwrapperPicker.getDXWrapper();
+                String dxwrapperConfig = dxwrapperPicker.getDXWrapperConfig();
+                String graphicsDriverConfig = graphicsDriverPicker.getGraphicsDriverConfig();
+                String audioDriverConfig = vAudioDriverConfig.getTag().toString();
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
                 String wincomponents = getWinComponents(view);
                 String drives = getDrives(view);
-                boolean showFPS = cbShowFPS.isChecked();
+                byte hudMode = (byte)sHUDMode.getSelectedItemPosition();
                 String cpuList = cpuListView.getCheckedCPUListAsString();
                 String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
-                boolean wow64Mode = cbWoW64Mode.isChecked() && cbWoW64Mode.isEnabled();
                 byte startupSelection = (byte)sStartupSelection.getSelectedItemPosition();
-                String box86Preset = Box86_64PresetManager.getSpinnerSelectedId(sBox86Preset);
-                String box64Preset = Box86_64PresetManager.getSpinnerSelectedId(sBox64Preset);
+                String box64Preset = Box64PresetManager.getSpinnerSelectedId(sBox64Preset);
                 String desktopTheme = getDesktopTheme(view);
 
                 if (isEditMode()) {
@@ -201,17 +210,22 @@ public class ContainerDetailFragment extends Fragment {
                     container.setGraphicsDriver(graphicsDriver);
                     container.setDXWrapper(dxwrapper);
                     container.setDXWrapperConfig(dxwrapperConfig);
+                    container.setGraphicsDriverConfig(graphicsDriverConfig);
                     container.setAudioDriver(audioDriver);
+                    container.setAudioDriverConfig(audioDriverConfig);
                     container.setWinComponents(wincomponents);
                     container.setDrives(drives);
-                    container.setShowFPS(showFPS);
-                    container.setWoW64Mode(wow64Mode);
+                    container.setHUDMode(hudMode);
                     container.setStartupSelection(startupSelection);
-                    container.setBox86Preset(box86Preset);
                     container.setBox64Preset(box64Preset);
                     container.setDesktopTheme(desktopTheme);
                     container.saveData();
+
                     saveWineRegistryKeys(view);
+
+                    boolean requireRestart = graphicsDriver.equals(GraphicsDrivers.VORTEK) && VortekConfigDialog.isRequireRestart(oldGraphicsDriverConfig, graphicsDriverConfig);
+                    if (requireRestart) ContentDialog.confirm(context, R.string.the_settings_have_been_changed_do_you_want_to_restart_the_app, () -> AppUtils.restartApplication(context));
+
                     getActivity().onBackPressed();
                 }
                 else {
@@ -224,13 +238,13 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("graphicsDriver", graphicsDriver);
                     data.put("dxwrapper", dxwrapper);
                     data.put("dxwrapperConfig", dxwrapperConfig);
+                    data.put("graphicsDriverConfig", graphicsDriverConfig);
                     data.put("audioDriver", audioDriver);
+                    data.put("audioDriverConfig", audioDriverConfig);
                     data.put("wincomponents", wincomponents);
                     data.put("drives", drives);
-                    data.put("showFPS", showFPS);
-                    data.put("wow64Mode", wow64Mode);
+                    data.put("hudMode", hudMode);
                     data.put("startupSelection", startupSelection);
-                    data.put("box86Preset", box86Preset);
                     data.put("box64Preset", box64Preset);
                     data.put("desktopTheme", desktopTheme);
 
@@ -257,31 +271,26 @@ public class ContainerDetailFragment extends Fragment {
     private void saveWineRegistryKeys(View view) {
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            Spinner sCSMT = view.findViewById(R.id.SCSMT);
-            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "csmt", sCSMT.getSelectedItemPosition() != 0 ? 3 : 0);
+            Spinner sSystemFont = view.findViewById(R.id.SSystemFont);
+            WineUtils.setSystemFont(registryEditor, sSystemFont.getSelectedItem().toString());
 
-            Spinner sGPUName = view.findViewById(R.id.SGPUName);
-            try {
-                JSONObject gpuName = gpuCards.getJSONObject(sGPUName.getSelectedItemPosition());
-                registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", gpuName.getInt("deviceID"));
-                registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciVendorID", gpuName.getInt("vendorID"));
-            }
-            catch (JSONException e) {}
-
-            Spinner sOffscreenRenderingMode = view.findViewById(R.id.SOffscreenRenderingMode);
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", sOffscreenRenderingMode.getSelectedItem().toString().toLowerCase(Locale.ENGLISH));
-
-            Spinner sStrictShaderMath = view.findViewById(R.id.SStrictShaderMath);
-            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", sStrictShaderMath.getSelectedItemPosition());
-
-            Spinner sVideoMemorySize = view.findViewById(R.id.SVideoMemorySize);
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", StringUtils.parseNumber(sVideoMemorySize.getSelectedItem()));
+            SeekBar sbLogPixels = view.findViewById(R.id.SBLogPixels);
+            registryEditor.setDwordValue("Control Panel\\Desktop", "LogPixels", (int)sbLogPixels.getValue());
 
             Spinner sMouseWarpOverride = view.findViewById(R.id.SMouseWarpOverride);
-            registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", sMouseWarpOverride.getSelectedItem().toString().toLowerCase(Locale.ENGLISH));
+
+            final String[] mouseWarpOverrideValues = new String[]{"disable", "enable", "force"};
+            registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", mouseWarpOverrideValues[sMouseWarpOverride.getSelectedItemPosition()]);
 
             registryEditor.setStringValue("Software\\Wine\\Direct3D", "shader_backend", "glsl");
             registryEditor.setStringValue("Software\\Wine\\Direct3D", "UseGLSL", "enabled");
+        }
+
+        Spinner sWinVersion = view.findViewById(R.id.SWinVersion);
+        int oldPosition = (byte)sWinVersion.getTag();
+        if (oldPosition != -1) {
+            int newPosition = sWinVersion.getSelectedItemPosition();
+            if (oldPosition != newPosition) WineUtils.setWinVersion(container, newPosition);
         }
     }
 
@@ -289,9 +298,10 @@ public class ContainerDetailFragment extends Fragment {
         Context context = getContext();
 
         WineThemeManager.ThemeInfo desktopTheme = new WineThemeManager.ThemeInfo(isEditMode() ? container.getDesktopTheme() : WineThemeManager.DEFAULT_DESKTOP_THEME);
-        Spinner sDesktopTheme = view.findViewById(R.id.SDesktopTheme);
-        sDesktopTheme.setSelection(desktopTheme.theme.ordinal());
+        RadioGroup rgDesktopTheme = view.findViewById(R.id.RGDesktopTheme);
+        rgDesktopTheme.check(desktopTheme.theme == WineThemeManager.Theme.LIGHT ? R.id.RBLight : R.id.RBDark);
         final ImagePickerView ipvDesktopBackgroundImage = view.findViewById(R.id.IPVDesktopBackgroundImage);
+        ipvDesktopBackgroundImage.setSelectedSource(desktopTheme.wallpaperId);
         final ColorPickerView cpvDesktopBackgroundColor = view.findViewById(R.id.CPVDesktopBackgroundColor);
         cpvDesktopBackgroundColor.setColor(desktopTheme.backgroundColor);
 
@@ -320,26 +330,12 @@ public class ContainerDetailFragment extends Fragment {
         File userRegFile = new File(containerDir, ".wine/user.reg");
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            List<String> stateList = Arrays.asList(context.getString(R.string.disable), context.getString(R.string.enable));
-            Spinner sCSMT = view.findViewById(R.id.SCSMT);
-            sCSMT.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, stateList));
-            sCSMT.setSelection(registryEditor.getDwordValue("Software\\Wine\\Direct3D", "csmt", 3) != 0 ? 1 : 0);
+            Spinner sSystemFont = view.findViewById(R.id.SSystemFont);
+            MSLogFont msLogFont = (new MSLogFont()).fromByteArray(registryEditor.getHexValues("Control Panel\\Desktop\\WindowMetrics", "CaptionFont"));
+            AppUtils.setSpinnerSelectionFromValue(sSystemFont, msLogFont.getFaceName());
 
-            Spinner sGPUName = view.findViewById(R.id.SGPUName);
-            loadGPUNameSpinner(sGPUName, registryEditor.getDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", 1728));
-
-            List<String> offscreenRenderingModeList = Arrays.asList("Backbuffer", "FBO");
-            Spinner sOffscreenRenderingMode = view.findViewById(R.id.SOffscreenRenderingMode);
-            sOffscreenRenderingMode.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, offscreenRenderingModeList));
-            AppUtils.setSpinnerSelectionFromValue(sOffscreenRenderingMode, registryEditor.getStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", "fbo"));
-
-            Spinner sStrictShaderMath = view.findViewById(R.id.SStrictShaderMath);
-            sStrictShaderMath.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, stateList));
-            sStrictShaderMath.setSelection(Math.min(registryEditor.getDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", 1), 1));
-
-            Spinner sVideoMemorySize = view.findViewById(R.id.SVideoMemorySize);
-            String videoMemorySize = registryEditor.getStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", "2048");
-            AppUtils.setSpinnerSelectionFromNumber(sVideoMemorySize, videoMemorySize);
+            SeekBar sbLogPixels = view.findViewById(R.id.SBLogPixels);
+            sbLogPixels.setValue(registryEditor.getDwordValue("Control Panel\\Desktop", "LogPixels", 96));
 
             List<String> mouseWarpOverrideList = Arrays.asList(context.getString(R.string.disable), context.getString(R.string.enable), context.getString(R.string.force));
             Spinner sMouseWarpOverride = view.findViewById(R.id.SMouseWarpOverride);
@@ -348,27 +344,10 @@ public class ContainerDetailFragment extends Fragment {
         }
     }
 
-    private void loadGPUNameSpinner(Spinner spinner, int selectedDeviceID) {
-        List<String> values = new ArrayList<>();
-        int selectedPosition = 0;
-
-        try {
-            for (int i = 0; i < gpuCards.length(); i++) {
-                JSONObject item = gpuCards.getJSONObject(i);
-                if (item.getInt("deviceID") == selectedDeviceID) selectedPosition = i;
-                values.add(item.getString("name"));
-            }
-        }
-        catch (JSONException e) {}
-
-        spinner.setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_dropdown_item, values));
-        spinner.setSelection(selectedPosition);
-    }
-
     public static String getScreenSize(View view) {
         Spinner sScreenSize = view.findViewById(R.id.SScreenSize);
         String value = sScreenSize.getSelectedItem().toString();
-        if (value.equalsIgnoreCase("custom")) {
+        if (sScreenSize.getSelectedItemPosition() == 0) {
             value = Container.DEFAULT_SCREEN_SIZE;
             String strWidth = ((EditText)view.findViewById(R.id.ETScreenWidth)).getText().toString().trim();
             String strHeight = ((EditText)view.findViewById(R.id.ETScreenHeight)).getText().toString().trim();
@@ -384,14 +363,17 @@ public class ContainerDetailFragment extends Fragment {
     private String getDesktopTheme(View view) {
         Spinner sDesktopBackgroundType = view.findViewById(R.id.SDesktopBackgroundType);
         WineThemeManager.BackgroundType type = WineThemeManager.BackgroundType.values()[sDesktopBackgroundType.getSelectedItemPosition()];
-        Spinner sDesktopTheme = view.findViewById(R.id.SDesktopTheme);
+        RadioGroup rgDesktopTheme = view.findViewById(R.id.RGDesktopTheme);
+        ImagePickerView ipvDesktopBackgroundImage = view.findViewById(R.id.IPVDesktopBackgroundImage);
         ColorPickerView cpvDesktopBackground = view.findViewById(R.id.CPVDesktopBackgroundColor);
-        WineThemeManager.Theme theme = WineThemeManager.Theme.values()[sDesktopTheme.getSelectedItemPosition()];
+        WineThemeManager.Theme theme = rgDesktopTheme.getCheckedRadioButtonId() == R.id.RBLight ? WineThemeManager.Theme.LIGHT : WineThemeManager.Theme.DARK;
 
        String desktopTheme = theme+","+type+","+cpvDesktopBackground.getColorAsString();
         if (type == WineThemeManager.BackgroundType.IMAGE) {
+            String selectedSource = ipvDesktopBackgroundImage.getSelectedSource();
+            String wallpaperId = !selectedSource.equals(WineThemeManager.DEFAULT_WALLPAPER_ID) && selectedSource.startsWith("wallpaper-") ? selectedSource : "0";
             File userWallpaperFile = WineThemeManager.getUserWallpaperFile(getContext());
-            desktopTheme += ","+(userWallpaperFile.isFile() ? userWallpaperFile.lastModified() : "0");
+            desktopTheme += ","+(userWallpaperFile.isFile() && selectedSource.equals("user-wallpaper") ? userWallpaperFile.lastModified() : wallpaperId);
         }
         return desktopTheme;
     }
@@ -403,8 +385,7 @@ public class ContainerDetailFragment extends Fragment {
         sScreenSize.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String value = sScreenSize.getItemAtPosition(position).toString();
-                llCustomScreenSize.setVisibility(value.equalsIgnoreCase("custom") ? View.VISIBLE : View.GONE);
+                llCustomScreenSize.setVisibility(sScreenSize.getSelectedItemPosition() == 0 ? View.VISIBLE : View.GONE);
             }
 
             @Override
@@ -413,56 +394,11 @@ public class ContainerDetailFragment extends Fragment {
 
         boolean found = AppUtils.setSpinnerSelectionFromIdentifier(sScreenSize, selectedValue);
         if (!found) {
-            AppUtils.setSpinnerSelectionFromValue(sScreenSize, "custom");
+            sScreenSize.setSelection(0);
             String[] screenSize = selectedValue.split("x");
             ((EditText)view.findViewById(R.id.ETScreenWidth)).setText(screenSize[0]);
             ((EditText)view.findViewById(R.id.ETScreenHeight)).setText(screenSize[1]);
         }
-    }
-
-    public static void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, String selectedGraphicsDriver, String selectedDXWrapper) {
-        final Context context = sGraphicsDriver.getContext();
-        final String[] dxwrapperEntries = context.getResources().getStringArray(R.array.dxwrapper_entries);
-
-        Runnable update = () -> {
-            String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
-            boolean addAll = graphicsDriver.equals("turnip");
-
-            ArrayList<String> items = new ArrayList<>();
-            for (String value : dxwrapperEntries) if (addAll || (!value.equals("DXVK") && !value.equals("VKD3D"))) items.add(value);
-            sDXWrapper.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items.toArray(new String[0])));
-            AppUtils.setSpinnerSelectionFromIdentifier(sDXWrapper, selectedDXWrapper);
-        };
-
-        sGraphicsDriver.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                update.run();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        AppUtils.setSpinnerSelectionFromIdentifier(sGraphicsDriver, selectedGraphicsDriver);
-        update.run();
-    }
-
-    public static void setupDXWrapperSpinner(final Spinner sDXWrapper, final View vDXWrapperConfig) {
-        sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
-                if (dxwrapper.equals("dxvk")) {
-                    vDXWrapperConfig.setOnClickListener((v) -> (new DXVKConfigDialog(vDXWrapperConfig)).show());
-                    vDXWrapperConfig.setVisibility(View.VISIBLE);
-                }
-                else vDXWrapperConfig.setVisibility(View.GONE);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
     }
 
     public static String getWinComponents(View view) {
@@ -486,12 +422,13 @@ public class ContainerDetailFragment extends Fragment {
         ViewGroup generalSectionView = tabView.findViewById(R.id.LLWinComponentsGeneral);
 
         for (String[] wincomponent : new KeyValueSet(wincomponents)) {
-            ViewGroup parent = wincomponent[0].startsWith("direct") ? directxSectionView : generalSectionView;
+            final String name = wincomponent[0];
+            ViewGroup parent = name.startsWith("direct") || name.startsWith("x") ? directxSectionView : generalSectionView;
             View itemView = inflater.inflate(R.layout.wincomponent_list_item, parent, false);
-            ((TextView)itemView.findViewById(R.id.TextView)).setText(StringUtils.getString(context, wincomponent[0]));
+            ((TextView)itemView.findViewById(R.id.TextView)).setText(StringUtils.getString(context, name));
             Spinner spinner = itemView.findViewById(R.id.Spinner);
             spinner.setSelection(Integer.parseInt(wincomponent[1]), false);
-            spinner.setTag(wincomponent[0]);
+            spinner.setTag(name);
             parent.addView(itemView);
         }
     }
@@ -512,7 +449,7 @@ public class ContainerDetailFragment extends Fragment {
             View child = parent.getChildAt(i);
             Spinner spinner = child.findViewById(R.id.Spinner);
             EditText editText = child.findViewById(R.id.EditText);
-            String path = editText.getText().toString().trim();
+            String path = editText.getText().toString().replace(":", "").trim();
             if (!path.isEmpty()) drives += spinner.getSelectedItem()+path;
         }
         return drives;
@@ -528,58 +465,87 @@ public class ContainerDetailFragment extends Fragment {
         final String[] driveLetters = new String[Container.MAX_DRIVE_LETTERS];
         for (int i = 0; i < driveLetters.length; i++) driveLetters[i] = ((char)(i + 68))+":";
 
-        Callback<String[]> addItem = (drive) -> {
+        Callback<Drive> addItem = (drive) -> {
             final View itemView = inflater.inflate(R.layout.drive_list_item, parent, false);
             Spinner spinner = itemView.findViewById(R.id.Spinner);
             spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, driveLetters));
-            AppUtils.setSpinnerSelectionFromValue(spinner, drive[0]+":");
+            AppUtils.setSpinnerSelectionFromValue(spinner, drive.letter+":");
 
             final EditText editText = itemView.findViewById(R.id.EditText);
-            editText.setText(drive[1]);
+            editText.setText(drive.path);
 
-            itemView.findViewById(R.id.BTSearch).setOnClickListener((v) -> {
-                openDirectoryCallback = (path) -> {
-                    drive[1] = path;
-                    editText.setText(path);
-                };
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStorageDirectory()));
-                getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
-            });
-
+            itemView.findViewById(R.id.BTSearch).setOnClickListener((v) -> showDriveSearchPopupMenu(v, drive, editText));
             itemView.findViewById(R.id.BTRemove).setOnClickListener((v) -> {
                 parent.removeView(itemView);
                 if (parent.getChildCount() == 0) emptyTextView.setVisibility(View.VISIBLE);
             });
             parent.addView(itemView);
         };
-        for (String[] drive : Container.drivesIterator(drives)) addItem.call(drive);
+        for (Drive drive : Container.drivesIterator(drives)) addItem.call(drive);
 
         view.findViewById(R.id.BTAddDrive).setOnClickListener((v) -> {
             if (parent.getChildCount() >= Container.MAX_DRIVE_LETTERS) return;
             final String nextDriveLetter = String.valueOf(driveLetters[parent.getChildCount()].charAt(0));
-            addItem.call(new String[]{nextDriveLetter, ""});
+            addItem.call(new Drive(nextDriveLetter, ""));
         });
 
         if (drives.isEmpty()) emptyTextView.setVisibility(View.VISIBLE);
     }
 
+    private void showDriveSearchPopupMenu(View anchorView, final Drive drive, final EditText editText) {
+        final FragmentActivity activity = getActivity();
+        final Fragment $this = ContainerDetailFragment.this;
+
+        PopupMenu popupMenu = new PopupMenu(activity, anchorView);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popupMenu.setForceShowIcon(true);
+        popupMenu.inflate(R.menu.drive_search_popup_menu);
+        Menu menu = popupMenu.getMenu();
+        SubMenu subMenu = menu.findItem(R.id.menu_item_locations).getSubMenu();
+        ArrayList<Container> containers = manager.getContainers();
+        for (int i = 0; i < containers.size(); i++) {
+            Container container = containers.get(i);
+            subMenu.add(0, 0, container.id, container.getName()+" (Drive C:)");
+        }
+
+        popupMenu.setOnMenuItemClickListener((menuItem) -> {
+            int itemId = menuItem.getItemId();
+            switch (itemId) {
+                case R.id.menu_item_open_directory:
+                    openDirectoryCallback = (path) -> {
+                        drive.path = path;
+                        editText.setText(path);
+                    };
+
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                    intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStorageDirectory()));
+                    activity.startActivityFromFragment($this, intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
+                    break;
+                case R.id.menu_item_downloads:
+                    drive.path = AppUtils.DIRECTORY_DOWNLOADS;
+                    editText.setText(AppUtils.DIRECTORY_DOWNLOADS);
+                    break;
+                case R.id.menu_item_internal_storage:
+                    drive.path = AppUtils.INTERNAL_STORAGE;
+                    editText.setText(AppUtils.INTERNAL_STORAGE);
+                    break;
+                default:
+                    Container container = manager.getContainerById(menuItem.getOrder());
+                    if (container != null) {
+                        String path = container.getRootDir()+"/.wine/drive_c";
+                        drive.path = path;
+                        editText.setText(path);
+                    }
+                    break;
+            }
+            return true;
+        });
+
+        popupMenu.show();
+    }
+
     private void loadWineVersionSpinner(final View view, Spinner sWineVersion, final ArrayList<WineInfo> wineInfos) {
         final Context context = getContext();
         sWineVersion.setEnabled(!isEditMode());
-        sWineVersion.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
-                WineInfo wineInfo = wineInfos.get(position);
-                boolean isMainWineVersion = WineInfo.isMainWineVersion(wineInfo.identifier());
-                CheckBox cbWoW64Mode = view.findViewById(R.id.CBWoW64Mode);
-                cbWoW64Mode.setEnabled(isMainWineVersion);
-                if (!isMainWineVersion) cbWoW64Mode.setChecked(false);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
         view.findViewById(R.id.LLWineVersion).setVisibility(View.VISIBLE);
         sWineVersion.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, wineInfos));
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, WineInfo.fromIdentifier(context, container.getWineVersion()).toString());

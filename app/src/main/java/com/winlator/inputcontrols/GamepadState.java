@@ -1,8 +1,6 @@
 package com.winlator.inputcontrols;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
 
 public class GamepadState {
     public float thumbLX = 0;

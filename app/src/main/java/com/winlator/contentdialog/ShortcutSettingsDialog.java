@@ -12,15 +12,18 @@ import android.widget.Spinner;
 import com.winlator.ContainerDetailFragment;
 import com.winlator.R;
 import com.winlator.ShortcutsFragment;
-import com.winlator.box86_64.Box86_64PresetManager;
+import com.winlator.box64.Box64PresetManager;
+import com.winlator.container.GraphicsDrivers;
 import com.winlator.container.Shortcut;
 import com.winlator.core.AppUtils;
+import com.winlator.container.DXWrapperPicker;
 import com.winlator.core.EnvVars;
+import com.winlator.container.GraphicsDriverPicker;
 import com.winlator.core.StringUtils;
 import com.winlator.inputcontrols.ControlsProfile;
 import com.winlator.inputcontrols.InputControlsManager;
 import com.winlator.widget.EnvVarsView;
-import com.winlator.winhandler.WinHandler;
+import com.winlator.winhandler.GamepadHandler;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -54,35 +57,37 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         ContainerDetailFragment.loadScreenSizeSpinner(getContentView(), shortcut.getExtra("screenSize", shortcut.container.getScreenSize()));
 
-        final Spinner sGraphicsDriver = findViewById(R.id.SGraphicsDriver);
-        final Spinner sDXWrapper = findViewById(R.id.SDXWrapper);
+        final String oldGraphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig());
+        String selectedGraphicsDriver = shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver());
+        GraphicsDriverPicker graphicsDriverPicker = new GraphicsDriverPicker(findViewById(R.id.LLGraphicsDriver), selectedGraphicsDriver, oldGraphicsDriverConfig);
 
-        final View vDXWrapperConfig = findViewById(R.id.BTDXWrapperConfig);
-        vDXWrapperConfig.setTag(shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig()));
-
-        ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
-        ContainerDetailFragment.loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver()),
-            shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
+        String oldDXWrapperConfig = shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig());
+        String selectedDXWrapper = shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper());
+        DXWrapperPicker dxwrapperPicker = new DXWrapperPicker(findViewById(R.id.LLDXWrapper), graphicsDriverPicker, selectedDXWrapper, oldDXWrapperConfig);
 
         findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
 
         final Spinner sAudioDriver = findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, shortcut.getExtra("audioDriver", shortcut.container.getAudioDriver()));
 
+        final View vAudioDriverConfig = findViewById(R.id.BTAudioDriverConfig);
+        vAudioDriverConfig.setTag(shortcut.getExtra("audioDriverConfig", shortcut.container.getAudioDriverConfig()));
+        vAudioDriverConfig.setOnClickListener((v) -> (new AudioDriverConfigDialog(v)).show());
+
         final CheckBox cbForceFullscreen = findViewById(R.id.CBForceFullscreen);
         cbForceFullscreen.setChecked(shortcut.getExtra("forceFullscreen", "0").equals("1"));
 
-        final Spinner sBox86Preset = findViewById(R.id.SBox86Preset);
-        Box86_64PresetManager.loadSpinner("box86", sBox86Preset, shortcut.getExtra("box86Preset", shortcut.container.getBox86Preset()));
-
         final Spinner sBox64Preset = findViewById(R.id.SBox64Preset);
-        Box86_64PresetManager.loadSpinner("box64", sBox64Preset, shortcut.getExtra("box64Preset", shortcut.container.getBox64Preset()));
+        Box64PresetManager.loadSpinner(sBox64Preset, shortcut.getExtra("box64Preset", shortcut.container.getBox64Preset()));
 
         final Spinner sControlsProfile = findViewById(R.id.SControlsProfile);
         loadControlsProfileSpinner(sControlsProfile, shortcut.getExtra("controlsProfile", "0"));
 
         final Spinner sDInputMapperType = findViewById(R.id.SDInputMapperType);
-        sDInputMapperType.setSelection(Byte.parseByte(shortcut.getExtra("dinputMapperType", String.valueOf(WinHandler.DINPUT_MAPPER_TYPE_XINPUT))));
+        sDInputMapperType.setSelection(Byte.parseByte(shortcut.getExtra("dinputMapperType", String.valueOf(GamepadHandler.DINPUT_MAPPER_TYPE_XINPUT))));
+
+        final Spinner sPreferredInputApi = findViewById(R.id.SPreferredInputApi);
+        sPreferredInputApi.setSelection(Byte.parseByte(shortcut.getExtra("preferredInputApi", String.valueOf(GamepadHandler.PreferredInputApi.AUTO.ordinal()))));
 
         ContainerDetailFragment.createWinComponentsTab(getContentView(), shortcut.getExtra("wincomponents", shortcut.container.getWinComponents()));
         final EnvVarsView envVarsView = createEnvVarsTab();
@@ -107,9 +112,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 renameShortcut(name);
             }
             else {
-                String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
-                String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
+                String graphicsDriver = graphicsDriverPicker.getGraphicsDriver();
+                String dxwrapper = dxwrapperPicker.getDXWrapper();
+                String dxwrapperConfig = dxwrapperPicker.getDXWrapperConfig();
+                String graphicsDriverConfig = graphicsDriverPicker.getGraphicsDriverConfig();
+                String audioDriverConfig = vAudioDriverConfig.getTag().toString();
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
                 String screenSize = ContainerDetailFragment.getScreenSize(getContentView());
 
@@ -119,7 +126,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("graphicsDriver", !graphicsDriver.equals(shortcut.container.getGraphicsDriver()) ? graphicsDriver : null);
                 shortcut.putExtra("dxwrapper", !dxwrapper.equals(shortcut.container.getDXWrapper()) ? dxwrapper : null);
                 shortcut.putExtra("dxwrapperConfig", !dxwrapperConfig.equals(shortcut.container.getDXWrapperConfig()) ? dxwrapperConfig : null);
+                shortcut.putExtra("graphicsDriverConfig", !graphicsDriverConfig.equals(shortcut.container.getGraphicsDriverConfig()) ? graphicsDriverConfig : null);
                 shortcut.putExtra("audioDriver", !audioDriver.equals(shortcut.container.getAudioDriver())? audioDriver : null);
+                shortcut.putExtra("audioDriverConfig", !audioDriverConfig.equals(shortcut.container.getAudioDriverConfig()) ? audioDriverConfig : null);
                 shortcut.putExtra("forceFullscreen", cbForceFullscreen.isChecked() ? "1" : null);
 
                 String wincomponents = ContainerDetailFragment.getWinComponents(getContentView());
@@ -128,22 +137,29 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String envVars = envVarsView.getEnvVars();
                 shortcut.putExtra("envVars", !envVars.isEmpty() ? envVars : null);
 
-                String box86Preset = Box86_64PresetManager.getSpinnerSelectedId(sBox86Preset);
-                String box64Preset = Box86_64PresetManager.getSpinnerSelectedId(sBox64Preset);
-                shortcut.putExtra("box86Preset", !box86Preset.equals(shortcut.container.getBox86Preset()) ? box86Preset : null);
+                String box64Preset = Box64PresetManager.getSpinnerSelectedId(sBox64Preset);
                 shortcut.putExtra("box64Preset", !box64Preset.equals(shortcut.container.getBox64Preset()) ? box64Preset : null);
 
-                int dinputMapperType = sDInputMapperType.getSelectedItemPosition();
                 ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
                 int controlsProfile = sControlsProfile.getSelectedItemPosition() > 0 ? profiles.get(sControlsProfile.getSelectedItemPosition()-1).id : 0;
                 shortcut.putExtra("controlsProfile", controlsProfile > 0 ? String.valueOf(controlsProfile) : null);
-                shortcut.putExtra("dinputMapperType", dinputMapperType != WinHandler.DINPUT_MAPPER_TYPE_XINPUT ? String.valueOf(dinputMapperType) : null);
+
+                int dinputMapperType = sDInputMapperType.getSelectedItemPosition();
+                shortcut.putExtra("dinputMapperType", dinputMapperType != GamepadHandler.DINPUT_MAPPER_TYPE_XINPUT ? String.valueOf(dinputMapperType) : null);
+
+                int preferredInputApi = sPreferredInputApi.getSelectedItemPosition();
+                shortcut.putExtra("preferredInputApi", preferredInputApi != GamepadHandler.PreferredInputApi.AUTO.ordinal() ? String.valueOf(preferredInputApi): null);
+
                 shortcut.saveData();
+
+                boolean requireRestart = graphicsDriver.equals(GraphicsDrivers.VORTEK) && VortekConfigDialog.isRequireRestart(oldGraphicsDriverConfig, graphicsDriverConfig);
+                if (requireRestart) ContentDialog.confirm(context, R.string.the_settings_have_been_changed_do_you_want_to_restart_the_app, () -> AppUtils.restartApplication(context));
             }
         });
     }
 
     private void renameShortcut(String newName) {
+        newName = StringUtils.clearReservedChars(newName);
         File parent = shortcut.file.getParentFile();
         File newFile = new File(parent, newName+".desktop");
         if (!newFile.isFile()) shortcut.file.renameTo(newFile);
@@ -153,7 +169,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             newFile = new File(parent, newName+".lnk");
             if (!newFile.isFile()) linkFile.renameTo(newFile);
         }
-        fragment.loadShortcutsList();
+        fragment.refreshContent();
     }
 
     private EnvVarsView createEnvVarsTab() {

@@ -1,17 +1,22 @@
 package com.winlator.alsaserver;
 
-import com.winlator.xconnector.Client;
+import com.winlator.xconnector.ConnectedClient;
 import com.winlator.xconnector.ConnectionHandler;
 
 public class ALSAClientConnectionHandler implements ConnectionHandler {
-    @Override
-    public void handleNewConnection(Client client) {
-        client.createIOStreams();
-        client.setTag(new ALSAClient());
+    private final ALSAClient.Options options;
+
+    public ALSAClientConnectionHandler(ALSAClient.Options options) {
+        this.options = options;
     }
 
     @Override
-    public void handleConnectionShutdown(Client client) {
-        ((ALSAClient)client.getTag()).release();
+    public void handleNewConnection(ConnectedClient client) {
+        client.setTag(new ALSAClient(options));
+    }
+
+    @Override
+    public void handleConnectionShutdown(ConnectedClient client) {
+        if (client.getTag() != null) ((ALSAClient)client.getTag()).release();
     }
 }

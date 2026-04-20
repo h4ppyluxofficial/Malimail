@@ -15,4 +15,10 @@ abstract class RequestCodes {
     public static final byte KEYBOARD_EVENT = 11;
     public static final byte BRING_TO_FRONT = 12;
     public static final byte CURSOR_POS_FEEDBACK = 13;
+    public static final byte SET_CLIPBOARD_DATA = 14;
+    public static final byte OPEN_URL = 15;
+    public static final byte MIDI_OPEN = 16;
+    public static final byte MIDI_CLOSE = 17;
+    public static final byte SHOW_DESKTOP = 18;
+    public static final byte SET_GAMEPAD_STATE = 19;
 }

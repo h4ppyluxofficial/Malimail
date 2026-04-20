@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Malimail</string>
+    <string name="app_name">Winlator</string>
     <string name="run">Run</string>
     <string name="edit">Edit</string>
     <string name="remove">Remove</string>
@@ -299,7 +299,7 @@
     <string name="system_font">System Font</string>
     <string name="vulkan_version">Vulkan Version</string>
     <string name="exposed_extensions">Exposed Extensions</string>
-    <string name="multiselection_combobox_display_text" formatted="false">%d of %d items</string>
+    <string name="multiselection_combobox_display_text">%d of %d items</string>
     <string name="voltage">Voltage</string>
     <string name="current">Current</string>
     <string name="capacity">Capacity</string>
@@ -347,7 +347,4 @@
     <string name="full">Full</string>
     <string name="ddraw_wrapper" translatable="false">DDraw Wrapper</string>
     <string name="renderer">Renderer</string>
-<string name="arch">Architecture</string>
-    <string name="wine_32bit" translatable="false">Wine 32-bit</string>
-    <string name="wine_64bit" translatable="false">Wine 64-bit</string>
 </resources>

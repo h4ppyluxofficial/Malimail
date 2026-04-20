@@ -2,16 +2,14 @@ package com.winlator;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
-import android.text.Html;
-import android.text.method.LinkMovementMethod;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.TextView;
 
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
@@ -24,16 +22,18 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.preference.PreferenceManager;
 
 import com.google.android.material.navigation.NavigationView;
-import com.winlator.contentdialog.ContentDialog;
+import com.winlator.contentdialog.AboutDialog;
+import com.winlator.core.AppUtils;
 import com.winlator.core.Callback;
+import com.winlator.core.LocaleHelper;
 import com.winlator.core.PreloaderDialog;
-import com.winlator.xenvironment.ImageFsInstaller;
-
-import java.util.List;
+import com.winlator.xenvironment.RootFSInstaller;
 
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+    public static final boolean DEBUG_MODE = false; // FIXME change to false
     public static final @IntRange(from = 1, to = 19) byte CONTAINER_PATTERN_COMPRESSION_LEVEL = 9;
     public static final byte PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE = 1;
     public static final byte OPEN_FILE_REQUEST_CODE = 2;
@@ -44,9 +44,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private boolean editInputControls = false;
     private int selectedProfileId;
     private Callback<Uri> openFileCallback;
+    private SharedPreferences preferences;
+    private Fragment currentFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        AppUtils.setActivityTheme(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_activity);
 
@@ -58,23 +61,37 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
 
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
         Intent intent = getIntent();
         editInputControls = intent.getBooleanExtra("edit_input_controls", false);
         if (editInputControls) {
             selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-            onNavigationItemSelected(navigationView.getMenu().findItem(R.id.main_menu_input_controls));
-            navigationView.setCheckedItem(R.id.main_menu_input_controls);
+            onNavigationItemSelected(navigationView.getMenu().findItem(R.id.menu_item_input_controls));
+            navigationView.setCheckedItem(R.id.menu_item_input_controls);
         }
         else {
+            boolean showShortcutsFirst = preferences.getBoolean("show_shortcuts_first", false);
             int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
-            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_containers;
+            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : (showShortcutsFirst ? R.id.menu_item_shortcuts : R.id.menu_item_containers);
 
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
             navigationView.setCheckedItem(menuItemId);
-            if (!requestAppPermissions()) ImageFsInstaller.installIfNeeded(this);
+            if (!requestAppPermissions()) RootFSInstaller.installIfNeeded(this);
+
+            int containerId = intent.getIntExtra("container_id", 0);
+            String startPath = intent.getStringExtra("start_path");
+            if (containerId > 0 && startPath != null) {
+                showFragment(new ContainerFileManagerFragment(containerId, startPath));
+            }
         }
+    }
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(LocaleHelper.setSystemLocale(newBase));
     }
 
     @Override
@@ -82,7 +99,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                ImageFsInstaller.installIfNeeded(this);
+                RootFSInstaller.installIfNeeded(this);
             }
             else finish();
         }
@@ -100,17 +117,27 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if ((newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE ||
+            newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) && currentFragment instanceof BaseFileManagerFragment) {
+            ((BaseFileManagerFragment)currentFragment).onOrientationChanged();
+        }
+    }
+
+    @Override
     public void onBackPressed() {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        List<Fragment> fragments = fragmentManager.getFragments();
-        for (Fragment fragment : fragments) {
-            if (fragment instanceof ContainersFragment && fragment.isVisible()) {
+        if (currentFragment != null && currentFragment.isVisible()) {
+            if (currentFragment instanceof BaseFileManagerFragment) {
+                BaseFileManagerFragment fileManagerFragment = (BaseFileManagerFragment)currentFragment;
+                if (fileManagerFragment.onBackPressed()) return;
+            }
+            else if (currentFragment instanceof ContainersFragment) {
                 finish();
-                return;
             }
         }
 
-        show(new ContainersFragment());
+        showFragment(new ContainersFragment());
     }
 
     public void setOpenFileCallback(Callback<Uri> openFileCallback) {
@@ -128,7 +155,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
-        if (menuItem.getItemId() == R.id.containers_menu_add) {
+        int itemId = menuItem.getItemId();
+        if (itemId == R.id.menu_item_add ||
+            itemId == R.id.menu_item_home ||
+            itemId == R.id.menu_item_view_style ||
+            itemId == R.id.menu_item_new_folder) {
             return super.onOptionsItemSelected(menuItem);
         }
         else {
@@ -136,7 +167,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 setResult(RESULT_OK);
                 finish();
             }
-            else drawerLayout.openDrawer(GravityCompat.START);
+            else {
+                if (currentFragment instanceof BaseFileManagerFragment) {
+                    BaseFileManagerFragment fileManagerFragment = (BaseFileManagerFragment)currentFragment;
+                    if (fileManagerFragment.onOptionsMenuClicked()) return true;
+                }
+                drawerLayout.openDrawer(GravityCompat.START);
+            }
             return true;
         }
     }
@@ -149,65 +186,34 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
 
         switch (item.getItemId()) {
-            case R.id.main_menu_shortcuts:
-                show(new ShortcutsFragment());
+            case R.id.menu_item_shortcuts:
+                preferences.edit().putBoolean("show_shortcuts_first", true).apply();
+                showFragment(new ShortcutsFragment());
                 break;
-            case R.id.main_menu_containers:
-                show(new ContainersFragment());
+            case R.id.menu_item_containers:
+                preferences.edit().putBoolean("show_shortcuts_first", false).apply();
+                showFragment(new ContainersFragment());
                 break;
-            case R.id.main_menu_input_controls:
-                show(new InputControlsFragment(selectedProfileId));
+            case R.id.menu_item_input_controls:
+                showFragment(new InputControlsFragment(selectedProfileId));
                 break;
-            case R.id.main_menu_settings:
-                show(new SettingsFragment());
+            case R.id.menu_item_settings:
+                showFragment(new SettingsFragment());
                 break;
-            case R.id.main_menu_about:
-                showAboutDialog();
+            case R.id.menu_item_about:
+                (new AboutDialog(this)).show();
                 break;
         }
         return true;
     }
 
-    private void show(Fragment fragment) {
+    public void showFragment(Fragment fragment) {
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
             .replace(R.id.FLFragmentContainer, fragment)
             .commit();
 
         drawerLayout.closeDrawer(GravityCompat.START);
-    }
-
-    private void showAboutDialog() {
-        ContentDialog dialog = new ContentDialog(this, R.layout.about_dialog);
-        dialog.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
-
-        try {
-            final PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-
-            TextView tvWebpage = dialog.findViewById(R.id.TVWebpage);
-            tvWebpage.setText(Html.fromHtml("<a href=\"https://www.winlator.org\">winlator.org</a>", Html.FROM_HTML_MODE_LEGACY));
-            tvWebpage.setMovementMethod(LinkMovementMethod.getInstance());
-
-            ((TextView)dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version)+" "+pInfo.versionName);
-
-            String creditsAndThirdPartyAppsHTML = String.join("<br />",
-                "Ubuntu RootFs (<a href=\"https://releases.ubuntu.com/focal\">Focal Fossa</a>)",
-                "Wine (<a href=\"https://www.winehq.org\">winehq.org</a>)",
-                "Box86/Box64 by <a href=\"https://github.com/ptitSeb\">ptitseb</a>",
-                "PRoot (<a href=\"https://proot-me.github.io\">proot-me.github.io</a>)",
-                "Mesa (Turnip/Zink/VirGL) (<a href=\"https://www.mesa3d.org\">mesa3d.org</a>)",
-                "DXVK (<a href=\"https://github.com/doitsujin/dxvk\">github.com/doitsujin/dxvk</a>)",
-                "VKD3D (<a href=\"https://gitlab.winehq.org/wine/vkd3d\">gitlab.winehq.org/wine/vkd3d</a>)",
-                "D8VK (<a href=\"https://github.com/AlpyneDreams/d8vk\">github.com/AlpyneDreams/d8vk</a>)",
-                "CNC DDraw (<a href=\"https://github.com/FunkyFr3sh/cnc-ddraw\">github.com/FunkyFr3sh/cnc-ddraw</a>)"
-            );
-
-            TextView tvCreditsAndThirdPartyApps = dialog.findViewById(R.id.TVCreditsAndThirdPartyApps);
-            tvCreditsAndThirdPartyApps.setText(Html.fromHtml(creditsAndThirdPartyAppsHTML, Html.FROM_HTML_MODE_LEGACY));
-            tvCreditsAndThirdPartyApps.setMovementMethod(LinkMovementMethod.getInstance());
-        }
-        catch (PackageManager.NameNotFoundException e) {}
-
-        dialog.show();
+        currentFragment = fragment;
     }
 }
