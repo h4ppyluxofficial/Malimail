@@ -59,10 +59,9 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         container = manager.getContainerById(containerId);
         viewStyle = ViewStyle.valueOf(preferences.getString("container_file_manager_view_style", "GRID"));
-        
+
         if (startPath != null) {
             setCurrentWorkingPath(WineUtils.unixToDOSPath(startPath, container));
             startPath = null;
@@ -72,7 +71,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
     @Override
     public void refreshContent() {
         super.refreshContent();
-
         FileInfo parent = !folderStack.isEmpty() ? folderStack.peek() : null;
         ArrayList<FileInfo> files = manager.loadFiles(container, parent);
         recyclerView.setAdapter(new FileInfoAdapter(files));
@@ -89,7 +87,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
     private void createFolder() {
         clearClipboard();
         if (folderStack.isEmpty()) return;
-
         ContentDialog.prompt(getContext(), R.string.new_folder, null, (name) -> {
             File file = new File(folderStack.peek().toFile(), name);
             if (file.isDirectory()) {
@@ -129,7 +126,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
             AppUtils.showToast(getContext(), R.string.you_cannot_paste_files_here);
             return;
         }
-
         clipboard.targetDir = folderStack.peek().toFile();
         super.pasteFiles();
     }
@@ -137,21 +133,23 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
         int itemId = menuItem.getItemId();
-        switch (itemId) {
-            case R.id.menu_item_home:
-                folderStack.clear();
-                refreshContent();
-                return true;
-            case R.id.menu_item_view_style:
-                setViewStyle(viewStyle == ViewStyle.GRID ? ViewStyle.LIST : ViewStyle.GRID);
-                preferences.edit().putString("container_file_manager_view_style", viewStyle.name()).apply();
-                refreshViewStyleMenuItem(menuItem);
-                return true;
-            case R.id.menu_item_new_folder:
-                createFolder();
-                return true;
-            default:
-                return super.onOptionsItemSelected(menuItem);
+        if (itemId == R.id.menu_item_home) {
+            folderStack.clear();
+            refreshContent();
+            return true;
+        }
+        else if (itemId == R.id.menu_item_view_style) {
+            setViewStyle(viewStyle == ViewStyle.GRID ? ViewStyle.LIST : ViewStyle.GRID);
+            preferences.edit().putString("container_file_manager_view_style", viewStyle.name()).apply();
+            refreshViewStyleMenuItem(menuItem);
+            return true;
+        }
+        else if (itemId == R.id.menu_item_new_folder) {
+            createFolder();
+            return true;
+        }
+        else {
+            return super.onOptionsItemSelected(menuItem);
         }
     }
 
@@ -171,7 +169,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
                 basePath += name+"\\";
             }
         }
-
         updateActionBarTitle();
     }
 
@@ -182,7 +179,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
                 if (i > 0) sb.append("\\");
                 sb.append(folderStack.elementAt(i).getDisplayName());
             }
-
             if (folderStack.size() == 1) sb.append("\\");
             return sb.toString();
         }
@@ -304,7 +300,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
                 holder.imageView.setImageResource(R.drawable.container_file);
                 LoadIconTask loadIconTask = (LoadIconTask)holder.imageView.getTag();
                 if (loadIconTask != null) loadIconTask.cancel();
-
                 loadIconTask = new LoadIconTask(ContainerFileManagerFragment.this, holder.imageView);
                 loadIconTask.loadAsync(item);
                 holder.imageView.setTag(loadIconTask);
@@ -327,7 +322,6 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
             listItemMenu.inflate(R.menu.file_manager_popup_menu);
-
             Menu menu = listItemMenu.getMenu();
             menu.findItem(R.id.menu_item_settings).setVisible(false);
 
@@ -343,28 +337,25 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
 
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
                 int itemId = menuItem.getItemId();
-                switch (itemId) {
-                    case R.id.menu_item_copy:
-                    case R.id.menu_item_cut:
-                        instantiateClipboard(file, itemId == R.id.menu_item_cut);
-                        break;
-                    case R.id.menu_item_remove:
-                        clearClipboard();
-                        ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_file, () -> removeFile(file.toFile()));
-                        break;
-                    case R.id.menu_item_rename:
-                        clearClipboard();
-                        ContentDialog.prompt(context, R.string.rename, file.name, (newName) -> {
-                            file.renameTo(newName);
-                            refreshContent();
-                        });
-                        break;
-                    case R.id.menu_item_add_favorite:
-                        addFavorite(file);
-                        break;
-                    case R.id.menu_item_info:
-                        (new FileInfoDialog(context, file, container)).show();
-                        break;
+                if (itemId == R.id.menu_item_copy || itemId == R.id.menu_item_cut) {
+                    instantiateClipboard(file, itemId == R.id.menu_item_cut);
+                }
+                else if (itemId == R.id.menu_item_remove) {
+                    clearClipboard();
+                    ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_file, () -> removeFile(file.toFile()));
+                }
+                else if (itemId == R.id.menu_item_rename) {
+                    clearClipboard();
+                    ContentDialog.prompt(context, R.string.rename, file.name, (newName) -> {
+                        file.renameTo(newName);
+                        refreshContent();
+                    });
+                }
+                else if (itemId == R.id.menu_item_add_favorite) {
+                    addFavorite(file);
+                }
+                else if (itemId == R.id.menu_item_info) {
+                    (new FileInfoDialog(context, file, container)).show();
                 }
                 return true;
             });
@@ -406,41 +397,39 @@ public class ContainerFileManagerFragment extends BaseFileManagerFragment<FileIn
         else {
             String extension = FileUtils.getExtension(file.path);
 
-            switch (extension) {
-                case "exe": {
-                    Bitmap bitmap = PEParser.extractIcon(file.toFile());
-                    return bitmap != null ? bitmap : R.drawable.container_file_window;
-                }
-                case "bat": {
-                    return R.drawable.container_file_window;
-                }
-                case "ico": {
-                    Bitmap bitmap = MSIcon.decodeFile(file.toFile());
-                    if (bitmap != null) return bitmap;
-                    break;
-                }
-                case "dll":
-                    return R.drawable.container_file_library;
-                case "lnk": {
-                    MSLink.LinkInfo linkInfo = file.getLinkinfo();
-                    if (linkInfo != null) {
-                        if (linkInfo.isDirectory) {
-                            return R.drawable.container_folder;
-                        }
-                        else {
-                            String targetPath = linkInfo.iconLocation != null ? linkInfo.iconLocation : linkInfo.targetPath;
-                            targetPath = WineUtils.dosToUnixPath(targetPath, container);
-
-                            Bitmap bitmap;
-                            if (targetPath.endsWith(".ico")) {
-                                bitmap = MSIcon.decodeFile(new File(targetPath));
-                            }
-                            else bitmap = PEParser.extractIcon(new File(targetPath), linkInfo.iconIndex);
-                            if (bitmap != null) return bitmap;
-                        }
+            if (extension.equals("exe")) {
+                Bitmap bitmap = PEParser.extractIcon(file.toFile());
+                return bitmap != null ? bitmap : R.drawable.container_file_window;
+            }
+            else if (extension.equals("bat")) {
+                return R.drawable.container_file_window;
+            }
+            else if (extension.equals("ico")) {
+                Bitmap bitmap = MSIcon.decodeFile(file.toFile());
+                if (bitmap != null) return bitmap;
+            }
+            else if (extension.equals("dll")) {
+                return R.drawable.container_file_library;
+            }
+            else if (extension.equals("lnk")) {
+                MSLink.LinkInfo linkInfo = file.getLinkinfo();
+                if (linkInfo != null) {
+                    if (linkInfo.isDirectory) {
+                        return R.drawable.container_folder;
                     }
-                    return R.drawable.container_file_link;
+                    else {
+                        String targetPath = linkInfo.iconLocation != null ? linkInfo.iconLocation : linkInfo.targetPath;
+                        targetPath = WineUtils.dosToUnixPath(targetPath, container);
+
+                        Bitmap bitmap;
+                        if (targetPath.endsWith(".ico")) {
+                            bitmap = MSIcon.decodeFile(new File(targetPath));
+                        }
+                        else bitmap = PEParser.extractIcon(new File(targetPath), linkInfo.iconIndex);
+                        if (bitmap != null) return bitmap;
+                    }
                 }
+                return R.drawable.container_file_link;
             }
 
             return R.drawable.container_file;

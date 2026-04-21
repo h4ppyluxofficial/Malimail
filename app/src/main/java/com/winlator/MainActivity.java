@@ -33,7 +33,7 @@ import com.winlator.core.PreloaderDialog;
 import com.winlator.xenvironment.RootFSInstaller;
 
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
-    public static final boolean DEBUG_MODE = false; // FIXME change to false
+    public static final boolean DEBUG_MODE = false;
     public static final @IntRange(from = 1, to = 19) byte CONTAINER_PATTERN_COMPRESSION_LEVEL = 9;
     public static final byte PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE = 1;
     public static final byte OPEN_FILE_REQUEST_CODE = 2;
@@ -136,7 +136,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 finish();
             }
         }
-
         showFragment(new ContainersFragment());
     }
 
@@ -185,24 +184,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         }
 
-        switch (item.getItemId()) {
-            case R.id.menu_item_shortcuts:
-                preferences.edit().putBoolean("show_shortcuts_first", true).apply();
-                showFragment(new ShortcutsFragment());
-                break;
-            case R.id.menu_item_containers:
-                preferences.edit().putBoolean("show_shortcuts_first", false).apply();
-                showFragment(new ContainersFragment());
-                break;
-            case R.id.menu_item_input_controls:
-                showFragment(new InputControlsFragment(selectedProfileId));
-                break;
-            case R.id.menu_item_settings:
-                showFragment(new SettingsFragment());
-                break;
-            case R.id.menu_item_about:
-                (new AboutDialog(this)).show();
-                break;
+        int navItemId = item.getItemId();
+        if (navItemId == R.id.menu_item_shortcuts) {
+            preferences.edit().putBoolean("show_shortcuts_first", true).apply();
+            showFragment(new ShortcutsFragment());
+        }
+        else if (navItemId == R.id.menu_item_containers) {
+            preferences.edit().putBoolean("show_shortcuts_first", false).apply();
+            showFragment(new ContainersFragment());
+        }
+        else if (navItemId == R.id.menu_item_input_controls) {
+            showFragment(new InputControlsFragment(selectedProfileId));
+        }
+        else if (navItemId == R.id.menu_item_settings) {
+            showFragment(new SettingsFragment());
+        }
+        else if (navItemId == R.id.menu_item_about) {
+            (new AboutDialog(this)).show();
         }
         return true;
     }

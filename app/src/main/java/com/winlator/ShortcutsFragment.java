@@ -41,7 +41,6 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
     @Override
     public void refreshContent() {
         super.refreshContent();
-
         Shortcut selectedFolder = !folderStack.isEmpty() ? folderStack.peek() : null;
         ArrayList<Shortcut> shortcuts = manager.loadShortcuts(selectedFolder);
         recyclerView.setAdapter(new ShortcutsAdapter(shortcuts));
@@ -80,7 +79,6 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
             AppUtils.showToast(getContext(), R.string.you_cannot_paste_files_here);
             return;
         }
-
         clipboard.targetDir = folderStack.peek().file;
         super.pasteFiles();
     }
@@ -90,7 +88,6 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
         File linkFile = shortcut.getLinkFile();
         File[] files = {new File(shortcut.file.getParentFile(), shortcut.file.getName())};
         if (shortcut.file.isFile()) files = ArrayUtils.concat(files, new File[]{new File(linkFile.getParentFile(), linkFile.getName())});
-
         clipboard = new Clipboard(files, cutMode);
         pasteButton.setVisibility(View.VISIBLE);
     }
@@ -181,7 +178,6 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
             listItemMenu.inflate(R.menu.file_manager_popup_menu);
-
             Menu menu = listItemMenu.getMenu();
             menu.findItem(R.id.menu_item_rename).setVisible(false);
             menu.findItem(R.id.menu_item_add_favorite).setVisible(false);
@@ -189,22 +185,19 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
 
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
                 int itemId = menuItem.getItemId();
-                switch (itemId) {
-                    case R.id.menu_item_settings:
-                        clearClipboard();
-                        (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
-                        break;
-                    case R.id.menu_item_copy:
-                    case R.id.menu_item_cut:
-                        instantiateClipboard(shortcut, itemId == R.id.menu_item_cut);
-                        break;
-                    case R.id.menu_item_remove:
-                        clearClipboard();
-                        ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_file, () -> {
-                            shortcut.remove();
-                            refreshContent();
-                        });
-                        break;
+                if (itemId == R.id.menu_item_settings) {
+                    clearClipboard();
+                    (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
+                }
+                else if (itemId == R.id.menu_item_copy || itemId == R.id.menu_item_cut) {
+                    instantiateClipboard(shortcut, itemId == R.id.menu_item_cut);
+                }
+                else if (itemId == R.id.menu_item_remove) {
+                    clearClipboard();
+                    ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_file, () -> {
+                        shortcut.remove();
+                        refreshContent();
+                    });
                 }
                 return true;
             });

@@ -73,22 +73,21 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         final PointF startPoint = new PointF();
         final boolean[] isActionDown = {false};
         container.findViewById(R.id.BTMove).setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    startPoint.x = event.getX();
-                    startPoint.y = event.getY();
-                    isActionDown[0] = true;
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    if (isActionDown[0]) {
-                        float newX = toolbox.getX() + (event.getX() - startPoint.x);
-                        float newY = toolbox.getY() + (event.getY() - startPoint.y);
-                        moveToolbox(newX, newY);
-                    }
-                    break;
-                case MotionEvent.ACTION_UP:
-                    isActionDown[0] = false;
-                    break;
+            int action = event.getAction();
+            if (action == MotionEvent.ACTION_DOWN) {
+                startPoint.x = event.getX();
+                startPoint.y = event.getY();
+                isActionDown[0] = true;
+            }
+            else if (action == MotionEvent.ACTION_MOVE) {
+                if (isActionDown[0]) {
+                    float newX = toolbox.getX() + (event.getX() - startPoint.x);
+                    float newY = toolbox.getY() + (event.getY() - startPoint.y);
+                    moveToolbox(newX, newY);
+                }
+            }
+            else if (action == MotionEvent.ACTION_UP) {
+                isActionDown[0] = false;
             }
             return true;
         });
@@ -114,24 +113,23 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
     @Override
     public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.BTAddElement:
-                if (!inputControlsView.addElement()) {
-                    AppUtils.showToast(this, R.string.no_profile_selected);
-                }
-                break;
-            case R.id.BTRemoveElement:
-                if (!inputControlsView.removeElement()) {
-                    AppUtils.showToast(this, R.string.no_control_element_selected);
-                }
-                break;
-            case R.id.BTElementSettings:
-                ControlElement selectedElement = inputControlsView.getSelectedElement();
-                if (selectedElement != null) {
-                    showControlElementSettings(v);
-                }
-                else AppUtils.showToast(this, R.string.no_control_element_selected);
-                break;
+        int viewId = v.getId();
+        if (viewId == R.id.BTAddElement) {
+            if (!inputControlsView.addElement()) {
+                AppUtils.showToast(this, R.string.no_profile_selected);
+            }
+        }
+        else if (viewId == R.id.BTRemoveElement) {
+            if (!inputControlsView.removeElement()) {
+                AppUtils.showToast(this, R.string.no_control_element_selected);
+            }
+        }
+        else if (viewId == R.id.BTElementSettings) {
+            ControlElement selectedElement = inputControlsView.getSelectedElement();
+            if (selectedElement != null) {
+                showControlElementSettings(v);
+            }
+            else AppUtils.showToast(this, R.string.no_control_element_selected);
         }
     }
 
@@ -149,23 +147,21 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             view.findViewById(R.id.LLMIDIKeyOptions).setVisibility(View.GONE);
             view.findViewById(R.id.LLRadialMenuOptions).setVisibility(View.GONE);
 
-            switch (type) {
-                case BUTTON:
-                    view.findViewById(R.id.LLShape).setVisibility(View.VISIBLE);
-                    view.findViewById(R.id.CBToggleSwitch).setVisibility(View.VISIBLE);
-                    view.findViewById(R.id.CBMouseMoveMode).setVisibility(View.VISIBLE);
-                    view.findViewById(R.id.LLCustomTextIcon).setVisibility(View.VISIBLE);
-                    break;
-                case RANGE_BUTTON:
-                    view.findViewById(R.id.LLRangeOptions).setVisibility(View.VISIBLE);
-                    break;
-                case MIDI_KEY:
-                    view.findViewById(R.id.LLMIDIKeyOptions).setVisibility(View.VISIBLE);
-                    break;
-                case RADIAL_MENU:
-                    ((NumberPicker)view.findViewById(R.id.NPBindings)).setValue(element.getBindingCount());
-                    view.findViewById(R.id.LLRadialMenuOptions).setVisibility(View.VISIBLE);
-                    break;
+            if (type == ControlElement.Type.BUTTON) {
+                view.findViewById(R.id.LLShape).setVisibility(View.VISIBLE);
+                view.findViewById(R.id.CBToggleSwitch).setVisibility(View.VISIBLE);
+                view.findViewById(R.id.CBMouseMoveMode).setVisibility(View.VISIBLE);
+                view.findViewById(R.id.LLCustomTextIcon).setVisibility(View.VISIBLE);
+            }
+            else if (type == ControlElement.Type.RANGE_BUTTON) {
+                view.findViewById(R.id.LLRangeOptions).setVisibility(View.VISIBLE);
+            }
+            else if (type == ControlElement.Type.MIDI_KEY) {
+                view.findViewById(R.id.LLMIDIKeyOptions).setVisibility(View.VISIBLE);
+            }
+            else if (type == ControlElement.Type.RADIAL_MENU) {
+                ((NumberPicker)view.findViewById(R.id.NPBindings)).setValue(element.getBindingCount());
+                view.findViewById(R.id.LLRadialMenuOptions).setVisibility(View.VISIBLE);
             }
 
             loadBindingSpinners(element, view);
@@ -249,11 +245,9 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                         break;
                     }
                 }
-
                 String text = etCustomText.getText().toString().trim();
                 element.setText(text);
             }
-
             element.setIconId(iconId);
             profile.save();
             inputControlsView.invalidate();
@@ -343,18 +337,11 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         }
 
         Runnable update = () -> {
-            String[] bindingEntries = null;
-            switch (sBindingType.getSelectedItemPosition()) {
-                case 0:
-                    bindingEntries = Binding.keyboardBindingLabels();
-                    break;
-                case 1:
-                    bindingEntries = Binding.mouseBindingLabels();
-                    break;
-                case 2:
-                    bindingEntries = Binding.gamepadBindingLabels();
-                    break;
-            }
+            int pos = sBindingType.getSelectedItemPosition();
+            String[] bindingEntries;
+            if (pos == 0) bindingEntries = Binding.keyboardBindingLabels();
+            else if (pos == 1) bindingEntries = Binding.mouseBindingLabels();
+            else bindingEntries = Binding.gamepadBindingLabels();
 
             sBinding.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
             AppUtils.setSpinnerSelectionFromValue(sBinding, element.getBindingAt(index).toString());
@@ -384,18 +371,11 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         sBinding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                Binding binding = Binding.NONE;
-                switch (sBindingType.getSelectedItemPosition()) {
-                    case 0:
-                        binding = Binding.keyboardBindingValues()[position];
-                        break;
-                    case 1:
-                        binding = Binding.mouseBindingValues()[position];
-                        break;
-                    case 2:
-                        binding = Binding.gamepadBindingValues()[position];
-                        break;
-                }
+                int pos = sBindingType.getSelectedItemPosition();
+                Binding binding;
+                if (pos == 0) binding = Binding.keyboardBindingValues()[position];
+                else if (pos == 1) binding = Binding.mouseBindingValues()[position];
+                else binding = Binding.gamepadBindingValues()[position];
 
                 if (binding != element.getBindingAt(index)) {
                     element.setBindingAt(index, binding);

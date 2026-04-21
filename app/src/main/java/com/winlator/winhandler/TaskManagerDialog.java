@@ -100,12 +100,10 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
 
         setOnDismissListener((dialog) -> {
             if (batteryReceiver != null) activity.unregisterReceiver(batteryReceiver);
-
             if (timer != null) {
                 timer.cancel();
                 timer = null;
             }
-
             activity.getWinHandler().setOnGetProcessInfoListener(null);
         });
 
@@ -172,11 +170,9 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     private void update() {
         synchronized (lock) {
             activity.getWinHandler().listProcesses();
-
             final LinearLayout container = findViewById(R.id.LLProcessList);
             if (container.getChildCount() == 0) findViewById(R.id.TVEmptyText).setVisibility(View.VISIBLE);
         }
-
         updateCPUPanel();
         updateMemoryPanel();
         updateBatteryPanel();
@@ -190,19 +186,17 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
         listItemMenu.setOnMenuItemClickListener((menuItem) -> {
             int itemId = menuItem.getItemId();
             final WinHandler winHandler = activity.getWinHandler();
-            switch (itemId) {
-                case R.id.menu_item_process_affinity:
-                    showProcessorAffinityDialog(processInfo);
-                    break;
-                case R.id.menu_item_bring_to_front:
-                    winHandler.bringToFront(processInfo.name);
-                    dismiss();
-                    break;
-                case R.id.menu_item_end_process:
-                    ContentDialog.confirm(activity, R.string.do_you_want_to_end_this_process, () -> {
-                        winHandler.killProcess(null, processInfo.pid);
-                    });
-                    break;
+            if (itemId == R.id.menu_item_process_affinity) {
+                showProcessorAffinityDialog(processInfo);
+            }
+            else if (itemId == R.id.menu_item_bring_to_front) {
+                winHandler.bringToFront(processInfo.name);
+                dismiss();
+            }
+            else if (itemId == R.id.menu_item_end_process) {
+                ContentDialog.confirm(activity, R.string.do_you_want_to_end_this_process, () -> {
+                    winHandler.killProcess(null, processInfo.pid);
+                });
             }
             return true;
         });
@@ -296,7 +290,6 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
             int currentMaxClockSpeed = CPUStatus.getMaxClockSpeed(i);
             maxClockSpeed = Math.max(maxClockSpeed, currentMaxClockSpeed);
             selectedClockSpeed = Math.max(selectedClockSpeed, clockSpeeds[i]);
-
             popupMenuItems.add("CPU"+i+": "+CPUStatus.formatClockSpeed(clockSpeeds[i])+"/"+CPUStatus.formatClockSpeed(currentMaxClockSpeed));
         }
 
