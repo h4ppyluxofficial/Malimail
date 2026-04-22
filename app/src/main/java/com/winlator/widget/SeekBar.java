@@ -134,33 +134,31 @@ public class SeekBar extends AppCompatImageView {
     public boolean onTouchEvent(MotionEvent event) {
         if (!isEnabled()) return false;
 
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN :
-                setPressed(isInThumbRange(event.getX()));
-                if (!isPressed()) return super.onTouchEvent(event);
-
+        int action = event.getAction();
+        if (action == MotionEvent.ACTION_DOWN) {
+            setPressed(isInThumbRange(event.getX()));
+            if (!isPressed()) return super.onTouchEvent(event);
+            setNormalizedValue(event.getX());
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            invalidate();
+        }
+        else if (action == MotionEvent.ACTION_MOVE) {
+            if (isPressed()) {
                 setNormalizedValue(event.getX());
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                 invalidate();
-                break;
-            case MotionEvent.ACTION_MOVE :
-                if (isPressed()) {
-                    setNormalizedValue(event.getX());
-                    invalidate();
-                }
-                break;
-            case MotionEvent.ACTION_UP :
-                if (isPressed()) {
-                    setNormalizedValue(event.getX());
-                    setPressed(false);
-                }
-                invalidate();
-                if (onValueChangeListener != null) onValueChangeListener.onValueChangeListener(this, getValue());
-                break;
-            case MotionEvent.ACTION_CANCEL :
-                if (isPressed()) setPressed(false);
-                invalidate();
-                break;
+            }
+        }
+        else if (action == MotionEvent.ACTION_UP) {
+            if (isPressed()) {
+                setNormalizedValue(event.getX());
+                setPressed(false);
+            }
+            invalidate();
+            if (onValueChangeListener != null) onValueChangeListener.onValueChangeListener(this, getValue());
+        }
+        else if (action == MotionEvent.ACTION_CANCEL) {
+            if (isPressed()) setPressed(false);
+            invalidate();
         }
         return true;
     }

@@ -205,18 +205,11 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
             final Context $this = ExternalControllerBindingsActivity.this;
 
             Runnable update = () -> {
-                String[] bindingEntries = null;
-                switch (holder.bindingType.getSelectedItemPosition()) {
-                    case 0:
-                        bindingEntries = Binding.keyboardBindingLabels();
-                        break;
-                    case 1:
-                        bindingEntries = Binding.mouseBindingLabels();
-                        break;
-                    case 2:
-                        bindingEntries = Binding.gamepadBindingLabels();
-                        break;
-                }
+                int pos = holder.bindingType.getSelectedItemPosition();
+                String[] bindingEntries;
+                if (pos == 0) bindingEntries = Binding.keyboardBindingLabels();
+                else if (pos == 1) bindingEntries = Binding.mouseBindingLabels();
+                else bindingEntries = Binding.gamepadBindingLabels();
 
                 holder.binding.setAdapter(new ArrayAdapter<>($this, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
                 AppUtils.setSpinnerSelectionFromValue(holder.binding, item.getBinding().toString());
@@ -246,18 +239,11 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
             holder.binding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    Binding binding = Binding.NONE;
-                    switch (holder.bindingType.getSelectedItemPosition()) {
-                        case 0:
-                            binding = Binding.keyboardBindingValues()[position];
-                            break;
-                        case 1:
-                            binding = Binding.mouseBindingValues()[position];
-                            break;
-                        case 2:
-                            binding = Binding.gamepadBindingValues()[position];
-                            break;
-                    }
+                    int pos = holder.bindingType.getSelectedItemPosition();
+                    Binding binding;
+                    if (pos == 0) binding = Binding.keyboardBindingValues()[position];
+                    else if (pos == 1) binding = Binding.mouseBindingValues()[position];
+                    else binding = Binding.gamepadBindingValues()[position];
 
                     if (binding != item.getBinding()) {
                         item.setBinding(binding);

@@ -245,39 +245,36 @@ public class LogView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                lastPoint.set(event.getX(), event.getY());
-                isActionDown = true;
-                scrollingHorizontally = false;
-                scrollingVertically = false;
-                break;
-            case MotionEvent.ACTION_MOVE:
-                if (isActionDown) {
-                    float dx = event.getX() - lastPoint.x;
-                    float dy = event.getY() - lastPoint.y;
-
-                    if (Math.abs(dx) > 10) scrollingHorizontally = true;
-                    if (Math.abs(dy) > 10) scrollingVertically = true;
-
-                    if (scrollingHorizontally) {
-                        scrollPosition.x = Mathf.clamp(scrollPosition.x - dx, 0, getScrollMaxLeft());
-                        lastPoint.set(event.getX(), event.getY());
-                        invalidate();
-                    }
-
-                    if (scrollingVertically) {
-                        scrollPosition.y = Mathf.clamp(scrollPosition.y - dy, 0, getScrollMaxTop());
-                        lastPoint.set(event.getX(), event.getY());
-                        invalidate();
-                    }
-                }
-                break;
-            case MotionEvent.ACTION_UP:
-                isActionDown = false;
-                break;
+        int action = event.getAction();
+        if (action == MotionEvent.ACTION_DOWN) {
+            lastPoint.set(event.getX(), event.getY());
+            isActionDown = true;
+            scrollingHorizontally = false;
+            scrollingVertically = false;
         }
+        else if (action == MotionEvent.ACTION_MOVE) {
+            if (isActionDown) {
+                float dx = event.getX() - lastPoint.x;
+                float dy = event.getY() - lastPoint.y;
 
+                if (Math.abs(dx) > 10) scrollingHorizontally = true;
+                if (Math.abs(dy) > 10) scrollingVertically = true;
+
+                if (scrollingHorizontally) {
+                    scrollPosition.x = Mathf.clamp(scrollPosition.x - dx, 0, getScrollMaxLeft());
+                    lastPoint.set(event.getX(), event.getY());
+                    invalidate();
+                }
+
+                if (scrollingVertically) {
+                    scrollPosition.y = Mathf.clamp(scrollPosition.y - dy, 0, getScrollMaxTop());
+                    lastPoint.set(event.getX(), event.getY());
+                    invalidate();
+                }
+            }
+        }
+        else if (action == MotionEvent.ACTION_UP) {
+            isActionDown = false;
+        }
         return true;
     }
-}
