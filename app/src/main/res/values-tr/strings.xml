@@ -151,12 +151,12 @@
     <string name="intermediate">Orta</string>
     <string name="performance">Performans</string>
     <string name="preset">Ön Ayar</string>
-    <string name="you_cannot_remove_this_preset">Bu ön ayarı kaldıramazsınız</string>
+    <string name="you_cannot_remove_this_preset">Bu ön ayarı kaldırılamazsınız</string>
     <string name="you_cannot_remove_this_component_version">Bu bileşen sürümünü kaldıramazsınız</string>
     <string name="dxwrapper_help_content"><![CDATA[
-        <i><b>WineD3D</b></i>, DirectX 1-11'den OpenGL'e bir çeviri katmanıdır.<br /><br />
-        <i><b>DXVK</b></i>, Direct3D 9-11'den Vulkan'a bir çeviri katmanıdır.<br /><br />
-        <i><b>VKD3D</b></i>, Direct3D 12 API'den Vulkan'a bir çeviri katmanıdır.<br /><br />
+        <i><b>WineD3D</b></i>, DirectX 1-11\'den OpenGL\'e bir çeviri katmanıdır.<br /><br />
+        <i><b>DXVK</b></i>, Direct3D 9-11\'den Vulkan\'a bir çeviri katmanıdır.<br /><br />
+        <i><b>VKD3D</b></i>, Direct3D 12 API\'den Vulkan\'a bir çeviri katmanıdır.<br /><br />
         <i><b>CNC DDraw</b></i>, klasik oyunlarla daha iyi uyumluluk için bir DirectDraw uygulamasıdır.
     ]]></string>
     <string name="columns">Sütunlar</string>
@@ -191,7 +191,7 @@
     <string name="sync_every_frame">Her kareyi senkronize et</string>
     <string name="dpi_font_size">DPI (Yazı Tipi Boyutu)</string>
     <string name="preferred_input_api">Tercih Edilen Giriş API\'si</string>
-    <string name="file_manager">Dosya Yöneticisi</string>
+    <string name="file_manager">Dosya Yоnetıcısı</string>
     <string name="documents">Belgeler</string>
     <string name="items">Öğeler</string>
     <string name="you_cannot_paste_files_here">Dosyaları buraya yapıştıramazsınız</string>
@@ -219,7 +219,7 @@
     <string name="performance_mode">Performans Modu</string>
     <string name="audio">Ses</string>
     <string name="opengl_version">OpenGL Sürümü</string>
-    <string name="disable_vertex_array_bgra">Vertex Array BGRA\'yı Devre Dışı Bırak</string>
+    <string name="disable_vertex_array_bgra">Vertex Array BGRA\'yı Devre Dışı Bıрак</string>
     <string name="screen_effect">Ekran Efekti</string>
     <string name="enable_fxaa">FXAA Etkinleştir</string>
     <string name="brightness">Parlaklık</string>
@@ -239,8 +239,8 @@
     <string name="capture_pointer_on_external_mouse">Harici farede imleci yakala</string>
     <string name="there_are_no_items_to_download">İndirilecek öğe yok.</string>
     <string name="enable_direct_rendering">Doğrudan oluşturmayı etkinleştir</string>
-    <string name="d3d_feature_level">D3D Özellik Seviyesi</string>
-    <string name="system_font">Sistem Yazı Tipi</string>
+    <string name="d3d_feature_level">D3D Özellik Seвиyesi</string>
+    <string name="system_font">Системный шрифт</string>
     <string name="vulkan_version">Vulkan Sürümü</string>
     <string name="exposed_extensions">Açık Uzantılar</string>
     <string name="multiselection_combobox_display_text">%d / %d öğe</string>
