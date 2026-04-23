@@ -32,6 +32,10 @@ import com.winlator.core.LocaleHelper;
 import com.winlator.core.PreloaderDialog;
 import com.winlator.xenvironment.RootFSInstaller;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
     public static final boolean DEBUG_MODE = false;
     public static final @IntRange(from = 1, to = 19) byte CONTAINER_PATTERN_COMPRESSION_LEVEL = 9;
@@ -49,43 +53,65 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        AppUtils.setActivityTheme(this);
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.main_activity);
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            try {
+                File crashFile = new File(getExternalFilesDir(null), "crash.txt");
+                PrintWriter pw = new PrintWriter(new FileWriter(crashFile));
+                throwable.printStackTrace(pw);
+                pw.flush();
+                pw.close();
+            } catch (Exception ignored) {}
+            android.os.Process.killProcess(android.os.Process.myPid());
+        });
 
-        drawerLayout = findViewById(R.id.DrawerLayout);
-        NavigationView navigationView = findViewById(R.id.NavigationView);
-        navigationView.setNavigationItemSelectedListener(this);
+        try {
+            AppUtils.setActivityTheme(this);
+            super.onCreate(savedInstanceState);
+            setContentView(R.layout.main_activity);
 
-        setSupportActionBar(findViewById(R.id.Toolbar));
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setDisplayHomeAsUpEnabled(true);
+            drawerLayout = findViewById(R.id.DrawerLayout);
+            NavigationView navigationView = findViewById(R.id.NavigationView);
+            navigationView.setNavigationItemSelectedListener(this);
 
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+            setSupportActionBar(findViewById(R.id.Toolbar));
+            ActionBar actionBar = getSupportActionBar();
+            actionBar.setDisplayHomeAsUpEnabled(true);
 
-        Intent intent = getIntent();
-        editInputControls = intent.getBooleanExtra("edit_input_controls", false);
-        if (editInputControls) {
-            selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-            onNavigationItemSelected(navigationView.getMenu().findItem(R.id.menu_item_input_controls));
-            navigationView.setCheckedItem(R.id.menu_item_input_controls);
-        }
-        else {
-            boolean showShortcutsFirst = preferences.getBoolean("show_shortcuts_first", false);
-            int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
-            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : (showShortcutsFirst ? R.id.menu_item_shortcuts : R.id.menu_item_containers);
+            preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
-            onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
-            navigationView.setCheckedItem(menuItemId);
-            if (!requestAppPermissions()) RootFSInstaller.installIfNeeded(this);
-
-            int containerId = intent.getIntExtra("container_id", 0);
-            String startPath = intent.getStringExtra("start_path");
-            if (containerId > 0 && startPath != null) {
-                showFragment(new ContainerFileManagerFragment(containerId, startPath));
+            Intent intent = getIntent();
+            editInputControls = intent.getBooleanExtra("edit_input_controls", false);
+            if (editInputControls) {
+                selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
+                actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
+                onNavigationItemSelected(navigationView.getMenu().findItem(R.id.menu_item_input_controls));
+                navigationView.setCheckedItem(R.id.menu_item_input_controls);
             }
+            else {
+                boolean showShortcutsFirst = preferences.getBoolean("show_shortcuts_first", false);
+                int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
+                int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : (showShortcutsFirst ? R.id.menu_item_shortcuts : R.id.menu_item_containers);
+
+                actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
+                onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
+                navigationView.setCheckedItem(menuItemId);
+                if (!requestAppPermissions()) RootFSInstaller.installIfNeeded(this);
+
+                int containerId = intent.getIntExtra("container_id", 0);
+                String startPath = intent.getStringExtra("start_path");
+                if (containerId > 0 && startPath != null) {
+                    showFragment(new ContainerFileManagerFragment(containerId, startPath));
+                }
+            }
+        } catch (Exception e) {
+            try {
+                File crashFile = new File(getExternalFilesDir(null), "crash.txt");
+                PrintWriter pw = new PrintWriter(new FileWriter(crashFile));
+                e.printStackTrace(pw);
+                pw.flush();
+                pw.close();
+            } catch (Exception ignored) {}
+            finish();
         }
     }
 

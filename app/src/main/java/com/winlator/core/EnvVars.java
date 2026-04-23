@@ -8,10 +8,19 @@ import java.util.LinkedHashMap;
 public class EnvVars implements Iterable<String> {
     private final LinkedHashMap<String, String> data = new LinkedHashMap<>();
 
-    public EnvVars() {}
+    public EnvVars() {
+        applyMaliFixes();
+    }
 
     public EnvVars(String values) {
+        applyMaliFixes();
         putAll(values);
+    }
+
+    private void applyMaliFixes() {
+        data.put("MESA_VK_WSI_PRESENT_MODE", "fifo");
+        data.put("DXVK_STATE_CACHE", "0");
+        data.put("PAN_MESA_DEBUG", "sync");
     }
 
     public EnvVars put(String name, Object value) {
@@ -23,9 +32,11 @@ public class EnvVars implements Iterable<String> {
         if (items == null) return;
         for (String item : items) {
             int index = item.indexOf("=");
-            String name = item.substring(0, index);
-            String value = item.substring(index+1);
-            data.put(name, value);
+            if (index != -1) {
+                String name = item.substring(0, index);
+                String value = item.substring(index + 1);
+                data.put(name, value);
+            }
         }
     }
 
@@ -52,6 +63,7 @@ public class EnvVars implements Iterable<String> {
 
     public void clear() {
         data.clear();
+        applyMaliFixes();
     }
 
     public boolean isEmpty() {
@@ -65,19 +77,19 @@ public class EnvVars implements Iterable<String> {
     }
 
     public String toEscapedString() {
-        String result = "";
+        StringBuilder result = new StringBuilder();
         for (String key : data.keySet()) {
-            if (!result.isEmpty()) result += " ";
+            if (result.length() > 0) result.append(" ");
             String value = data.get(key);
-            result += key+"="+value.replace(" ", "\\ ");
+            result.append(key).append("=").append(value.replace(" ", "\\ "));
         }
-        return result;
+        return result.toString();
     }
 
     public String[] toStringArray() {
         String[] stringArray = new String[data.size()];
         int index = 0;
-        for (String key : data.keySet()) stringArray[index++] = key+"="+data.get(key);
+        for (String key : data.keySet()) stringArray[index++] = key + "=" + data.get(key);
         return stringArray;
     }
 
