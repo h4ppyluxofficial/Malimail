@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.winlator">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature
         android:glEsVersion="0x00020000"
         android:required="true" />
@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
@@ -51,7 +52,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.winlator.FileProvider"
+            android:authorities="com.malimail.mediatek.FileProvider"
             android:exported="false"
             android:grantUriPermissions="true">
 
