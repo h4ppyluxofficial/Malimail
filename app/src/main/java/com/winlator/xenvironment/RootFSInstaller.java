@@ -1,239 +1,186 @@
-package com.winlator;
+package com.winlator.xenvironment;
 
-import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.content.res.Configuration;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Environment;
-import android.provider.Settings;
-import android.view.MenuItem;
 
-import androidx.annotation.IntRange;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.view.GravityCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.preference.PreferenceManager;
 
-import com.google.android.material.navigation.NavigationView;
-import com.winlator.contentdialog.AboutDialog;
+import com.winlator.MainActivity;
+import com.winlator.R;
+import com.winlator.SettingsFragment;
+import com.winlator.container.Container;
+import com.winlator.container.ContainerManager;
 import com.winlator.core.AppUtils;
-import com.winlator.core.Callback;
-import com.winlator.core.LocaleHelper;
+import com.winlator.core.DownloadProgressDialog;
+import com.winlator.core.FileUtils;
 import com.winlator.core.PreloaderDialog;
-import com.winlator.xenvironment.RootFSInstaller;
+import com.winlator.core.TarCompressorUtils;
+import com.winlator.core.WineInfo;
 
-public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
-    public static final boolean DEBUG_MODE = false;
-    public static final @IntRange(from = 1, to = 19) byte CONTAINER_PATTERN_COMPRESSION_LEVEL = 9;
-    public static final byte PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE = 1;
-    public static final byte OPEN_FILE_REQUEST_CODE = 2;
-    public static final byte EDIT_INPUT_CONTROLS_REQUEST_CODE = 3;
-    public static final byte OPEN_DIRECTORY_REQUEST_CODE = 4;
-    private static final int MANAGE_STORAGE_REQUEST_CODE = 100;
-    private DrawerLayout drawerLayout;
-    public final PreloaderDialog preloaderDialog = new PreloaderDialog(this);
-    private boolean editInputControls = false;
-    private int selectedProfileId;
-    private Callback<Uri> openFileCallback;
-    private SharedPreferences preferences;
-    private Fragment currentFragment;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        AppUtils.setActivityTheme(this);
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.main_activity);
+import java.io.File;
+import java.util.ArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
-        drawerLayout = findViewById(R.id.DrawerLayout);
-        NavigationView navigationView = findViewById(R.id.NavigationView);
-        navigationView.setNavigationItemSelectedListener(this);
+public abstract class RootFSInstaller {
+    public static final byte LATEST_VERSION = 19;
+    public static final byte UPDATE_WINEPREFIX_VERSION = 16;
+    public static final String FILENAME = "rootfs.tzst";
 
-        setSupportActionBar(findViewById(R.id.Toolbar));
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.setDisplayHomeAsUpEnabled(true);
-
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
-
-        Intent intent = getIntent();
-        editInputControls = intent.getBooleanExtra("edit_input_controls", false);
-        if (editInputControls) {
-            selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-            onNavigationItemSelected(navigationView.getMenu().findItem(R.id.menu_item_input_controls));
-            navigationView.setCheckedItem(R.id.menu_item_input_controls);
-        }
-        else {
-            boolean showShortcutsFirst = preferences.getBoolean("show_shortcuts_first", false);
-            int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
-            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : (showShortcutsFirst ? R.id.menu_item_shortcuts : R.id.menu_item_containers);
-
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
-            onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
-            navigationView.setCheckedItem(menuItemId);
-            if (!requestAppPermissions()) requestManageStoragePermission();
-
-            int containerId = intent.getIntExtra("container_id", 0);
-            String startPath = intent.getStringExtra("start_path");
-            if (containerId > 0 && startPath != null) {
-                showFragment(new ContainerFileManagerFragment(containerId, startPath));
+    private static void resetContainerRFSVersions(Context context) {
+        ContainerManager manager = new ContainerManager(context);
+        for (Container container : manager.getContainers()) {
+            String rfsVersion = container.getExtra("rfsVersion");
+            String wineVersion = container.getWineVersion();
+            if (!rfsVersion.isEmpty() && WineInfo.isMainWineVersion(wineVersion) && Short.parseShort(rfsVersion) <= UPDATE_WINEPREFIX_VERSION) {
+                container.putExtra("wineprefixNeedsUpdate", "t");
             }
+            container.putExtra("rfsVersion", null);
+            container.saveData();
         }
     }
 
-    @Override
-    protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(LocaleHelper.setSystemLocale(newBase));
-    }
+    public static void install(final MainActivity activity) {
+        AppUtils.keepScreenOn(activity);
+        RootFS rootFS = RootFS.find(activity);
+        final File rootDir = rootFS.getRootDir();
 
-    private void requestManageStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                Uri uri = Uri.parse("package:" + getPackageName());
-                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri);
-                startActivityForResult(intent, MANAGE_STORAGE_REQUEST_CODE);
-            }
-            else RootFSInstaller.installIfNeeded(this);
-        }
-        else RootFSInstaller.installIfNeeded(this);
-    }
+        SettingsFragment.resetBox64Version(activity);
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                requestManageStoragePermission();
-            }
-            else finish();
-        }
-    }
+        final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
+        dialog.show(R.string.installing_system_files);
+        Executors.newSingleThreadExecutor().execute(() -> {
+            clearRootDir(rootDir);
+            final long contentLength = TarCompressorUtils.getContentLength(TarCompressorUtils.Type.ZSTD, activity, FILENAME, rootDir);
+            AtomicLong totalSizeRef = new AtomicLong();
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == MANAGE_STORAGE_REQUEST_CODE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-                RootFSInstaller.installIfNeeded(this);
-            }
-            else finish();
-        }
-        else if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            if (openFileCallback != null) {
-                openFileCallback.call(data.getData());
-                openFileCallback = null;
-            }
-        }
-    }
-
-    @Override
-    public void onConfigurationChanged(@NonNull Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if ((newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE ||
-            newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) && currentFragment instanceof BaseFileManagerFragment) {
-            ((BaseFileManagerFragment)currentFragment).onOrientationChanged();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (currentFragment != null && currentFragment.isVisible()) {
-            if (currentFragment instanceof BaseFileManagerFragment) {
-                BaseFileManagerFragment fileManagerFragment = (BaseFileManagerFragment)currentFragment;
-                if (fileManagerFragment.onBackPressed()) return;
-            }
-            else if (currentFragment instanceof ContainersFragment) {
-                finish();
-            }
-        }
-        showFragment(new ContainersFragment());
-    }
-
-    public void setOpenFileCallback(Callback<Uri> openFileCallback) {
-        this.openFileCallback = openFileCallback;
-    }
-
-    private boolean requestAppPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) return false;
-
-        String[] permissions = new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE};
-        ActivityCompat.requestPermissions(this, permissions, PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem menuItem) {
-        int itemId = menuItem.getItemId();
-        if (itemId == R.id.menu_item_add ||
-            itemId == R.id.menu_item_home ||
-            itemId == R.id.menu_item_view_style ||
-            itemId == R.id.menu_item_new_folder) {
-            return super.onOptionsItemSelected(menuItem);
-        }
-        else {
-            if (editInputControls) {
-                setResult(RESULT_OK);
-                finish();
-            }
-            else {
-                if (currentFragment instanceof BaseFileManagerFragment) {
-                    BaseFileManagerFragment fileManagerFragment = (BaseFileManagerFragment)currentFragment;
-                    if (fileManagerFragment.onOptionsMenuClicked()) return true;
+            boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, FILENAME, rootDir, (file, size) -> {
+                if (size > 0) {
+                    long totalSize = totalSizeRef.addAndGet(size);
+                    final int progress = (int)(((float)totalSize / contentLength) * 100);
+                    activity.runOnUiThread(() -> dialog.setProgress(progress));
                 }
-                drawerLayout.openDrawer(GravityCompat.START);
+                return file;
+            });
+
+            if (success) {
+                rootFS.createRFSVersionFile(LATEST_VERSION);
+                resetContainerRFSVersions(activity);
             }
-            return true;
+            else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
+
+            dialog.closeOnUiThread();
+        });
+    }
+
+    public static void installIfNeeded(final MainActivity activity) {
+        RootFS rootFS = RootFS.find(activity);
+        if (!rootFS.isValid() || rootFS.getVersion() < LATEST_VERSION) install(activity);
+    }
+
+    private static void clearOptDir(File optDir) {
+        File[] files = optDir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.getName().equals("installed-wine")) continue;
+                FileUtils.delete(file);
+            }
         }
     }
 
-    @Override
-    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        if (fragmentManager.getBackStackEntryCount() > 0) {
-            fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
+    private static void clearRootDir(File rootDir) {
+        if (rootDir.isDirectory()) {
+            File[] files = rootDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        String name = file.getName();
+                        if (name.equals("home") || name.equals("opt")) {
+                            if (name.equals("opt")) clearOptDir(file);
+                            continue;
+                        }
+                    }
+                    FileUtils.delete(file);
+                }
+            }
         }
-
-        int navItemId = item.getItemId();
-        if (navItemId == R.id.menu_item_shortcuts) {
-            preferences.edit().putBoolean("show_shortcuts_first", true).apply();
-            showFragment(new ShortcutsFragment());
-        }
-        else if (navItemId == R.id.menu_item_containers) {
-            preferences.edit().putBoolean("show_shortcuts_first", false).apply();
-            showFragment(new ContainersFragment());
-        }
-        else if (navItemId == R.id.menu_item_input_controls) {
-            showFragment(new InputControlsFragment(selectedProfileId));
-        }
-        else if (navItemId == R.id.menu_item_settings) {
-            showFragment(new SettingsFragment());
-        }
-        else if (navItemId == R.id.menu_item_about) {
-            (new AboutDialog(this)).show();
-        }
-        return true;
+        else rootDir.mkdirs();
     }
 
-    public void showFragment(Fragment fragment) {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        fragmentManager.beginTransaction()
-            .replace(R.id.FLFragmentContainer, fragment)
-            .commit();
+    public static void generateCompactContainerPattern(final AppCompatActivity activity) {
+        AppUtils.keepScreenOn(activity);
+        PreloaderDialog preloaderDialog = new PreloaderDialog(activity);
+        preloaderDialog.show(R.string.loading);
+        Executors.newSingleThreadExecutor().execute(() -> {
+            File[] srcFiles, dstFiles;
+            File rootDir = RootFS.find(activity).getRootDir();
+            File wineSystem32Dir = new File(rootDir, "/opt/wine/lib/wine/x86_64-windows");
+            File wineSysWoW64Dir = new File(rootDir, "/opt/wine/lib/wine/i386-windows");
 
-        drawerLayout.closeDrawer(GravityCompat.START);
-        currentFragment = fragment;
+            File containerPatternDir = new File(activity.getCacheDir(), "container_pattern");
+            FileUtils.delete(containerPatternDir);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "container_pattern.tzst", containerPatternDir);
+
+            File containerSystem32Dir = new File(containerPatternDir, ".wine/drive_c/windows/system32");
+            File containerSysWoW64Dir = new File(containerPatternDir, ".wine/drive_c/windows/syswow64");
+
+            dstFiles = containerSystem32Dir.listFiles();
+            srcFiles = wineSystem32Dir.listFiles();
+
+            ArrayList<String> system32Files = new ArrayList<>();
+            ArrayList<String> syswow64Files = new ArrayList<>();
+
+            for (File dstFile : dstFiles) {
+                for (File srcFile : srcFiles) {
+                    if (dstFile.getName().equals(srcFile.getName())) {
+                        if (FileUtils.contentEquals(srcFile, dstFile)) system32Files.add(srcFile.getName());
+                        break;
+                    }
+                }
+            }
+
+            dstFiles = containerSysWoW64Dir.listFiles();
+            srcFiles = wineSysWoW64Dir.listFiles();
+
+            for (File dstFile : dstFiles) {
+                for (File srcFile : srcFiles) {
+                    if (dstFile.getName().equals(srcFile.getName())) {
+                        if (FileUtils.contentEquals(srcFile, dstFile)) syswow64Files.add(srcFile.getName());
+                        break;
+                    }
+                }
+            }
+
+            try {
+                JSONObject data = new JSONObject();
+
+                JSONArray system32JSONArray = new JSONArray();
+                for (String name : system32Files) {
+                    FileUtils.delete(new File(containerSystem32Dir, name));
+                    system32JSONArray.put(name);
+                }
+                data.put("system32", system32JSONArray);
+
+                JSONArray syswow64JSONArray = new JSONArray();
+                for (String name : syswow64Files) {
+                    FileUtils.delete(new File(containerSysWoW64Dir, name));
+                    syswow64JSONArray.put(name);
+                }
+                data.put("syswow64", syswow64JSONArray);
+
+                FileUtils.writeString(new File(activity.getCacheDir(), "common_dlls.json"), data.toString());
+
+                File outputFile = new File(activity.getCacheDir(), "container_pattern.tzst");
+                FileUtils.delete(outputFile);
+                TarCompressorUtils.compress(TarCompressorUtils.Type.ZSTD, new File(containerPatternDir, ".wine"), outputFile, 22);
+
+                FileUtils.delete(containerPatternDir);
+                preloaderDialog.closeOnUiThread();
+            }
+            catch (JSONException e) {}
+        });
     }
 }
