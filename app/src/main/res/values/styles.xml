@@ -21,7 +21,7 @@
         <item name="radioButtonStyle">@style/RadioButton</item>
     </style>
     <style name="AppThemeLight" parent="@style/AppThemeBase">
-        <item name="colorAccent">#0288d1</item>
+        <item name="colorAccent">#D10A02</item>
         <item name="colorPrimary">#607d8b</item>
         <item name="colorPrimaryDark">#455a64</item>
         <item name="colorControlNormal">#e0e0e0</item>
@@ -253,12 +253,12 @@
     <style name="TableHeadRightLine">
         <item name="android:layout_width">1dp</item>
         <item name="android:layout_height">match_parent</item>
-        <item name="android:background">#0278b8</item>
+        <item name="android:background">#B80802</item>
     </style>
     <style name="TableHeadBottomLine">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>
-        <item name="android:background">#0278b8</item>
+        <item name="android:background">#B80802</item>
     </style>
     <style name="TableBodyRightLine">
         <item name="android:layout_width">1dp</item>
